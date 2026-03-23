@@ -1131,8 +1131,8 @@ async function sbDeleteRefLib(id){refLib=refLib.filter(r=>r.id!=id);await sbDele
 // ── LOAD ALL DATA FROM SUPABASE ───────────────────────────────────────
 async function loadAllData(){
   const [
-    {data:g},{data:s},{data:t},{data:n},{data:m},
-    {data:rec},{data:oo},{data:tk},{data:dl},
+    {data:g},{data:s},{data:tk},{data:n},{data:m},
+    {data:rec},{data:oo},{data:dl},
     {data:cd},{data:mo},{data:rl},{data:tl}
   ] = await Promise.all([
     sb.from('grievances').select('*').order('id',{ascending:false}),
@@ -1142,7 +1142,6 @@ async function loadAllData(){
     sb.from('meetings').select('*').order('id',{ascending:false}),
     sb.from('recurring').select('*').order('name'),
     sb.from('oneoffs').select('*').order('date'),
-    sb.from('tasks').select('*').order('id',{ascending:false}),
     sb.from('deadlines').select('*').order('date'),
     sb.from('case_data').select('*'),
     sb.from('mgmt_owes').select('*').order('id',{ascending:false}),
