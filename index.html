@@ -1011,8 +1011,9 @@ tr:hover td{background:#faf9f7}
   const SUPA_URL = 'https://dolikttxxmrdbosyuqmn.supabase.co';
   const SUPA_KEY = 'sb_publishable_LHRFPsWQjwtVSImaRtNMvQ_npndTht8';
   
-  // Use 'window.supabase' to ensure the library is loaded first
+  // Initialize both 'sb' and 'window.supabase' to fix all app functions
   const sb = window.supabase.createClient(SUPA_URL, SUPA_KEY);
+  window.supabase = sb;
 
 // ── GOOGLE CONFIG ─────────────────────────────────────────────────────
 const GOOGLE_CLIENT_ID='1433696212-5dj9ohnhrpbhbim3s6ofc026j20urr39.apps.googleusercontent.com';
