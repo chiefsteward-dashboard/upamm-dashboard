@@ -1032,8 +1032,8 @@ let currentUser=null;
 let currentProfile=null;
 
 async function getProfile(uid){
-  const {data}=await sb.from('profiles').select('*').eq('id',uid).single();
-  return data;
+  const {data}=await sb.from('profiles').select('*').eq('id',uid).maybeSingle();
+  return data||null;
 }
 
 function currentUserName(){
