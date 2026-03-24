@@ -2228,9 +2228,10 @@ function updateEventForm(){
 
 function addCaseEvent(){
   if(!activeCaseId)return;
-  const type=document.getElementById('cf-evt-type').value;
-  const dateVal=document.getElementById('cf-evt-date').value||today();
-  const notes=document.getElementById('cf-evt-notes').value.trim();
+  const _m=document.getElementById('cf-modal-overlay');const _mOpen=_m&&_m.style.display!=='none';const getF=id=>(_mOpen&&_m.querySelector('#'+id))||document.getElementById(id);
+  const type=getF('cf-evt-type')?.value;
+  const dateVal=getF('cf-evt-date')?.value||today();
+  const notes=getF('cf-evt-notes')?.value.trim();
   const extReason=document.getElementById('cf-ext-reason')?.value.trim()||'';
   const extNewDate=document.getElementById('cf-ext-newdate')?.value||'';
   const g=grievances.find(x=>x.id==activeCaseId);
@@ -2265,9 +2266,9 @@ function addCaseEvent(){
     if(statusMap[type]){g.status=statusMap[type];if(type==='resolved'||type==='union-withdrew')g.closed='Yes';}
   }
   sbSaveCaseData(activeCaseId);sbSaveGrievance(grievances.find(x=>x.id==activeCaseId)||{});renderCFActivity();renderGrievances();renderGMetrics();
-  document.getElementById('cf-evt-notes').value='';
-  document.getElementById('cf-evt-date').value=today();
-  document.getElementById('cf-evt-preview').style.display='none';
+  const _en=getF('cf-evt-notes');if(_en)_en.value='';
+  const _ed=getF('cf-evt-date');if(_ed)_ed.value=today();
+  const _ep=getF('cf-evt-preview');if(_ep)_ep.style.display='none';
   if(document.getElementById('cf-ext-reason'))document.getElementById('cf-ext-reason').value='';
   if(document.getElementById('cf-ext-newdate'))document.getElementById('cf-ext-newdate').value='';
 }
@@ -2313,21 +2314,27 @@ function renderCFActivity(){
 // ── INFORMATION REQUESTS ───────────────────────────────────────────────
 function addInfoRequest(){
   if(!activeCaseId)return;
-  const what=document.getElementById('ir-what').value.trim();
+  // Find form fields in modal if open, else in main DOM
+  const _m=document.getElementById('cf-modal-overlay');
+  const _mOpen=_m&&_m.style.display!=='none';
+  const getField=id=>(_mOpen&&_m.querySelector('#'+id))||document.getElementById(id);
+  const what=getField('ir-what')?.value.trim();
   if(!what)return alert('Description required');
-  const dateVal=document.getElementById('ir-date').value||today();
-  const due=document.getElementById('ir-due').value;
-  const url=document.getElementById('ir-url')?.value.trim()||'';
+  const dateVal=getField('ir-date')?.value||today();
+  const due=getField('ir-due')?.value||'';
+  const url=getField('ir-url')?.value.trim()||'';
+  const how=getField('ir-how')?.value||'Written — email';
+  const to=getField('ir-to')?.value.trim()||'';
   const g=grievances.find(x=>x.id==activeCaseId);
   const cd=getCaseData(activeCaseId);
-  const req={id:Date.now(),what,how:document.getElementById('ir-how').value,to:document.getElementById('ir-to').value.trim(),date:dateVal,due,url,received:false,receivedDate:'',notes:''};
+  const req={id:Date.now(),what,how,to,date:dateVal,due,url,received:false,receivedDate:'',notes:''};
   cd.infoRequests.push(req);
   // Auto-add to mgmt owes
-  mgmtOwes.unshift({id:Date.now()+1,what:'Info request: '+what+(g?' (Grievance #'+g.num+')':''),type:'Information request (Art. 16 Sec. 3)',due:due||'',gnum:g?g.num:'',contact:req.to,pri:'med',notes:'Requested '+dateVal+' via '+req.how,received:false,receivedDate:'',created:today()});
+  mgmtOwes.unshift({id:Date.now()+1,what:'Info request: '+what+(g?' (Grievance #'+g.num+')':''),type:'Information request (Art. 16 Sec. 3)',due:due||'',gnum:g?g.num:'',contact:to,pri:'med',notes:'Requested '+dateVal+' via '+how,received:false,receivedDate:'',created:today()});
   // Also log in event log
-  cd.notes.push({id:Date.now()+2,text:'Information request filed (Art. 16 Sec. 3): '+what+' — sent to '+req.to+' via '+req.how+(url?' — document linked':''),type:'union-info-request',date:dateVal,ts:new Date().toISOString()});
+  cd.notes.push({id:Date.now()+2,text:'Information request filed (Art. 16 Sec. 3): '+what+' — sent to '+to+' via '+how+(url?' — document linked':''),type:'union-info-request',date:dateVal,ts:new Date().toISOString()});
   sbSaveCaseData(activeCaseId);renderCFInfoReq();renderCFActivity();
-  ['ir-what','ir-date','ir-due','ir-to','ir-url'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});
+  ['ir-what','ir-date','ir-due','ir-to','ir-url'].forEach(id=>{const e=getField(id);if(e)e.value='';});
 }
 
 function renderCFInfoReq(){
@@ -2701,9 +2708,11 @@ function toggleCaseDoc(idx){
 
 function addCaseDoc(){
   if(!activeCaseId)return;
-  const text=document.getElementById('cf-doc-text').value.trim();if(!text)return;
+  const _m2=document.getElementById('cf-modal-overlay');const _mO2=_m2&&_m2.style.display!=='none';
+  const _dt=(_mO2&&_m2.querySelector('#cf-doc-text'))||document.getElementById('cf-doc-text');
+  const text=_dt?.value.trim();if(!text)return;
   getCaseData(activeCaseId).docs.push({text,done:false,custom:true});
-  sbSaveCaseData(activeCaseId);renderCFChecklist();document.getElementById('cf-doc-text').value='';
+  sbSaveCaseData(activeCaseId);renderCFChecklist();if(_dt)_dt.value='';
 }
 
 function delCaseDoc(idx){
@@ -3334,9 +3343,10 @@ function clearBulkSelect(){bulkSelected.clear();updateBulkBar();renderGrievances
 
 // ── DEADLINE CALCULATOR ────────────────────────────────────────────────
 function calcDeadlines(){
-  const dateVal=document.getElementById('calc-date').value;
-  const step=document.getElementById('calc-step').value;
-  const el=document.getElementById('calc-results');
+  const _mc=document.getElementById('cf-modal-overlay');const _mOc=_mc&&_mc.style.display!=='none';
+  const dateVal=((_mOc&&_mc.querySelector('#calc-date'))||document.getElementById('calc-date'))?.value;
+  const step=((_mOc&&_mc.querySelector('#calc-step'))||document.getElementById('calc-step'))?.value;
+  const el=(_mOc&&_mc.querySelector('#calc-results'))||document.getElementById('calc-results');
   if(!dateVal){el.innerHTML='';return;}
   const base=parseDate(dateVal);if(!base){el.innerHTML='';return;}
   const addD=(d,n)=>{const r=new Date(d);r.setDate(r.getDate()+n);return r;};
@@ -3402,6 +3412,9 @@ function renderPrepChecklist(){
 }
 
 function startMeetingFromPrep(type){
+  // Close case file modal if open
+  const modal=document.getElementById('cf-modal-overlay');
+  if(modal)modal.style.display='none';
   // Navigate to meeting notes with this type pre-selected
   const nav=document.querySelector('.nav-item[onclick*="meetings"]');
   if(nav)showPanel('meetings',nav);
@@ -3409,8 +3422,13 @@ function startMeetingFromPrep(type){
     const sel=document.getElementById('mt-type');
     if(sel){sel.value=type;loadTemplate();}
     const g=activeCaseId?grievances.find(x=>x.id==activeCaseId):null;
-    if(g){const gnumEl=document.getElementById('mt-gnum');if(gnumEl)gnumEl.value=g.num;}
-  },100);
+    if(g){
+      const gnumEl=document.getElementById('mt-gnum');
+      if(gnumEl)gnumEl.value=g.num;
+    }
+    // Scroll to top of meeting notes form
+    document.getElementById('panel-meetings')?.scrollIntoView({behavior:'smooth'});
+  },150);
 }
 
 // ── CONVERT INTAKE TO GRIEVANCE ─────────────────────────────────────────
