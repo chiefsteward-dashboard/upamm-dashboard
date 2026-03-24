@@ -3899,13 +3899,47 @@ async function gmailSendOfficerUpdate(){
 }
 
 // ── INIT ──────────────────────────────────────────────────────────────
-sb.auth.getSession().then(({data:{session}})=>{
-  if(session){onLogin(session.user);}
-  else{document.getElementById('login-screen').style.display='flex';}
-});
+// First check URL hash for tokens (GitHub Pages OAuth redirect puts them here)
+(async()=>{
+  // Parse hash params — Supabase puts access_token etc in URL hash after redirect
+  const hash=window.location.hash;
+  if(hash&&hash.includes('access_token')){
+    // Let Supabase process the hash
+    const {data:{session},error}=await sb.auth.getSession();
+    if(session){
+      // Also try to get provider token from hash directly
+      const params=new URLSearchParams(hash.replace('#',''));
+      const providerToken=params.get('provider_token');
+      if(providerToken){
+        googleAccessToken=providerToken;
+        console.log('Google token from URL hash ✓');
+      }
+      // Clean up the URL
+      history.replaceState(null,'',window.location.pathname);
+      onLogin(session.user);
+      return;
+    }
+  }
+  // Normal session check
+  const {data:{session}}=await sb.auth.getSession();
+  if(session){
+    onLogin(session.user);
+  } else {
+    document.getElementById('login-screen').style.display='flex';
+  }
+})();
+
 sb.auth.onAuthStateChange((event,session)=>{
-  if(event==='SIGNED_IN'&&session&&session.provider_token){googleAccessToken=session.provider_token;}
+  if(event==='SIGNED_IN'&&session){
+    if(session.provider_token){
+      googleAccessToken=session.provider_token;
+      console.log('Google token from auth state ✓');
+      const btn=document.getElementById('reconnect-google-btn');
+      if(btn)btn.style.display='none';
+    }
+  }
   if(event==='SIGNED_OUT'){
+    googleAccessToken=null;
     document.getElementById('main-app').style.display='none';
     document.getElementById('login-screen').style.display='flex';
   }
