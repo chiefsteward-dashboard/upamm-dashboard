@@ -3850,12 +3850,11 @@ async function gcalDeleteEvent(eventId){
 async function driveUploadFile(folderId,filename,content,mimeType){
   if(!await ensureGoogleToken())return null;
   try{
-    // Include driveId for shared drive support
-    const metadata={name:filename,parents:[folderId]};
+    // Include driveId for team/shared drive — required for uploads to work
+    const metadata={name:filename,parents:[folderId],driveId:DRIVE_ROOT};
     const form=new FormData();
     form.append('metadata',new Blob([JSON.stringify(metadata)],{type:'application/json'}));
     form.append('file',new Blob([content],{type:mimeType||'text/plain'}));
-    // supportsAllDrives + includeItemsFromAllDrives required for shared/team drives
     const url='https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true&includeItemsFromAllDrives=true';
     const resp=await fetch(url,{
       method:'POST',headers:{'Authorization':'Bearer '+googleAccessToken},body:form
