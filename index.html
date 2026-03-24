@@ -1017,11 +1017,11 @@ const GOOGLE_CLIENT_ID='1433696212-5dj9ohnhrpbhbim3s6ofc026j20urr39.apps.googleu
 const CALENDAR_ID='c_fdb50ad73a9b4438dff1550b148aece054219f598cfb48eec2469f6710008737@group.calendar.google.com';
 const DRIVE_ROOT='0ACDLHneUr98MUk9PVA';
 const DRIVE_CONTRACTS='1N2KfzuR-Zq8zvQn2OFZAQTWFRzOyFgsd';
-const DRIVE_CONTRACTS_CBA='11mIe11Tevou17rxX_fSWvov1nPk4iFnA';
-const DRIVE_CONTRACTS_PAST='1I4fJdm0x0psQ0mjyhBE3ZpERuWuBOB61';
+const DRIVE_CONTRACTS_CBA='11mIe1lTevou17rxX_fSWvov1nPk4iFnA';
+const DRIVE_CONTRACTS_PAST='1I4fJdm0x0psQ0mjyhBE3ZpERuWuBOB6l';
 const DRIVE_CONTRACTS_ARB='1ASI2DUrEEBVlvFU9UCvsMvY1ZjqyWn-H';
 const DRIVE_CONTRACTS_SETTLE='1IqnwRV-G_BmpgMIeHXk302upR-dZnjnD';
-const DRIVE_CONTRACTS_MOU='1-wfyQCCjY6Ny3HUwwX5k6y8OI3jRZt0u';
+const DRIVE_CONTRACTS_MOU='1-wfyQCCjY6Ny3HUWwX5k6y8O13jRZt0u';
 const DRIVE_FORMS='1NYWkJ3BYahw1ZRsLurhqOXaEH1TTvdqE';
 const DRIVE_MEETINGS='128CNCUfBwjtWCl6l3vc3DIOHiYRHTd4r';
 const DRIVE_UPDATES='13l4-gC_m-Qr1Z8Jp-44xk3WUaeOW9_-S';
@@ -3579,7 +3579,6 @@ function renderRefLib(){
 function refDocCard(r,compact){
   const fileData=r.fileData||null;
   const typeColor={'MOU':'var(--purple)','Settlement agreement':'var(--teal)','Arbitration award':'var(--red)','Past grievance resolution':'var(--amber)'}[r.type]||'#888';
-  // Drive link takes priority over file download
   const driveBtn=r.driveUrl?`<a href="${escHtml(r.driveUrl)}" target="_blank" class="btn btn-sm btn-green" style="font-size:11px">📂 Open in Drive</a>`:'';
   const dlBtn=fileData?`<a href="${fileData}" download="${escHtml(r.fileName||r.title+'.pdf')}" class="btn btn-sm" style="font-size:11px">⬇ Download</a>`:'';
   const actionBtn=driveBtn||dlBtn;
@@ -3595,7 +3594,7 @@ function refDocCard(r,compact){
       </div>
     </div>`;
   }
-  return`<div class="card" style="margin-bottom:12px">
+  return`<div class="card" style="margin-bottom:12px" id="rl-card-${r.id}">
     <div style="display:flex;align-items:flex-start;gap:10px">
       <div style="flex:1">
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
@@ -3611,10 +3610,46 @@ function refDocCard(r,compact){
       </div>
       <div style="display:flex;flex-direction:column;gap:4px;flex-shrink:0">
         ${actionBtn}
+        <button class="btn btn-sm" onclick="editRefDoc(${r.id})">Edit</button>
         <button class="btn btn-sm btn-danger" onclick="delRefDoc(${r.id})">✕ Remove</button>
       </div>
     </div>
+    <!-- Edit panel -->
+    <div id="rl-edit-${r.id}" style="display:none;margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">
+      <div class="form-row">
+        <div class="form-field" style="flex:3"><label>Summary</label><textarea id="rle-summary-${r.id}" rows="3" style="width:100%;font-size:12px;padding:8px">${escHtml(r.summary||'')}</textarea></div>
+      </div>
+      <div class="form-row">
+        <div class="form-field" style="flex:3">
+          <label>Google Drive link ${r.driveUrl?'<span style="color:var(--teal);font-size:10px">✓ Set — editing will update the link</span>':''}</label>
+          <input type="url" id="rle-url-${r.id}" value="${escHtml(r.driveUrl||'')}" placeholder="https://drive.google.com/file/d/...">
+        </div>
+        <div class="form-field"><label>Articles</label><input type="text" id="rle-articles-${r.id}" value="${escHtml(r.articles||'')}"></div>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-primary btn-sm" onclick="saveRefDocEdit(${r.id})">Save</button>
+        <button class="btn btn-sm" onclick="document.getElementById('rl-edit-${r.id}').style.display='none'">Cancel</button>
+      </div>
+    </div>
   </div>`;
+}
+
+function editRefDoc(id){
+  const el=document.getElementById('rl-edit-'+id);
+  if(el)el.style.display=el.style.display==='none'?'block':'none';
+}
+
+function saveRefDocEdit(id){
+  const r=refLib.find(x=>x.id==id);if(!r)return;
+  const newUrl=document.getElementById('rle-url-'+id)?.value.trim();
+  const newSummary=document.getElementById('rle-summary-'+id)?.value.trim();
+  const newArticles=document.getElementById('rle-articles-'+id)?.value.trim();
+  // Only update Drive URL if a value is provided — never wipe an existing URL
+  if(newUrl)r.driveUrl=newUrl;
+  if(newSummary!==undefined)r.summary=newSummary;
+  if(newArticles!==undefined)r.articles=newArticles;
+  sbSaveRefLib(r);
+  renderRefLib();
 }
 
 function renderCFRefs(){
