@@ -1017,6 +1017,11 @@ const GOOGLE_CLIENT_ID='1433696212-5dj9ohnhrpbhbim3s6ofc026j20urr39.apps.googleu
 const CALENDAR_ID='c_fdb50ad73a9b4438dff1550b148aece054219f598cfb48eec2469f6710008737@group.calendar.google.com';
 const DRIVE_ROOT='0ACDLHneUr98MUk9PVA';
 const DRIVE_CONTRACTS='1N2KfzuR-Zq8zvQn2OFZAQTWFRzOyFgsd';
+const DRIVE_CONTRACTS_CBA='11mIe11Tevou17rxX_fSWvov1nPk4iFnA';
+const DRIVE_CONTRACTS_PAST='1I4fJdm0x0psQ0mjyhBE3ZpERuWuBOB61';
+const DRIVE_CONTRACTS_ARB='1ASI2DUrEEBVlvFU9UCvsMvY1ZjqyWn-H';
+const DRIVE_CONTRACTS_SETTLE='1IqnwRV-G_BmpgMIeHXk302upR-dZnjnD';
+const DRIVE_CONTRACTS_MOU='1-wfyQCCjY6Ny3HUwwX5k6y8OI3jRZt0u';
 const DRIVE_FORMS='1NYWkJ3BYahw1ZRsLurhqOXaEH1TTvdqE';
 const DRIVE_MEETINGS='128CNCUfBwjtWCl6l3vc3DIOHiYRHTd4r';
 const DRIVE_UPDATES='13l4-gC_m-Qr1Z8Jp-44xk3WUaeOW9_-S';
@@ -3522,17 +3527,32 @@ function addRefDoc(){
   const fileInput=document.getElementById('rl-file');
   const file=fileInput.files[0];
   const driveUrl=document.getElementById('rl-drive-url').value.trim();
-  const ref={id:Date.now(),title,type:document.getElementById('rl-type').value,
+  const docType=document.getElementById('rl-type').value;
+  const ref={id:Date.now(),title,type:docType,
     date:document.getElementById('rl-date').value,
     parties:document.getElementById('rl-parties').value.trim(),
     articles:document.getElementById('rl-articles').value.trim(),
     gnum:document.getElementById('rl-gnum').value.trim(),
     summary:document.getElementById('rl-summary').value.trim(),
     driveUrl,fileName:'',fileData:null,created:today()};
+  // Map document type to correct Drive subfolder
+  const typeFolderMap={
+    'MOU':DRIVE_CONTRACTS_MOU,
+    'Settlement agreement':DRIVE_CONTRACTS_SETTLE,
+    'Arbitration award':DRIVE_CONTRACTS_ARB,
+    'Past grievance resolution':DRIVE_CONTRACTS_PAST,
+    'Collective Bargaining Agreement':DRIVE_CONTRACTS_CBA,
+  };
+  const targetFolder=typeFolderMap[docType]||DRIVE_CONTRACTS;
   if(file){
     const reader=new FileReader();
-    reader.onload=e=>{
+    reader.onload=async e=>{
       ref.fileData=e.target.result;ref.fileName=file.name;
+      // Upload file to correct Drive subfolder
+      if(googleAccessToken){
+        const url=await driveUploadFile(targetFolder,file.name,e.target.result.split(',')[1]||e.target.result,file.type||'application/octet-stream');
+        if(url){ref.driveUrl=url;ref.fileData=null;ref.fileName=file.name;}// store Drive link instead of raw data
+      }
       refLib.unshift(ref);sbSaveRefLib(ref);renderRefLib();
     };
     reader.readAsDataURL(file);
@@ -3885,8 +3905,8 @@ async function driveSaveBackup(){
 async function driveSaveMeetingNote(meeting){
   if(!await ensureGoogleToken())return;
   const label=TYPE_LABELS[meeting.type]||meeting.type||'Meeting';
-  const fn=(meeting.date||today())+' \u2014 '+label+(meeting.gnum?' #'+meeting.gnum:'')+'.txt';
-  const content='UPAMM Meeting Note\n'+label+'\nDate: '+(meeting.date||'\u2014')+'\nAttendees: '+(meeting.attendees||'\u2014')+'\nGrievance #: '+(meeting.gnum||'\u2014')+'\nSaved by: '+currentUserName()+'\n\n'+(meeting.body||'');
+  const fn=(meeting.date||today())+' — '+label+(meeting.gnum?' #'+meeting.gnum:'')+'.txt';
+  const content='UPAMM Meeting Note\n'+label+'\nDate: '+(meeting.date||'—')+'\nAttendees: '+(meeting.attendees||'—')+'\nGrievance #: '+(meeting.gnum||'—')+'\nSaved by: '+currentUserName()+'\n\n'+(meeting.body||'');
   await driveUploadFile(DRIVE_MEETINGS,fn,content,'text/plain');
 }
 
