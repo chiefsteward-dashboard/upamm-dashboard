@@ -724,6 +724,13 @@ tr:hover td{background:#faf9f7}
           <div class="form-field"><label>Sent to</label><input type="text" id="ir-to" placeholder="Name / title"></div>
           <div class="form-field" style="max-width:160px"><label>Response due (est.)</label><input type="date" id="ir-due" placeholder="Reasonable time"></div>
         </div>
+        <div class="form-row">
+          <div class="form-field" style="flex:3">
+            <label>Link to request document <span style="font-weight:400;color:var(--text3)">(Google Drive URL — optional)</span></label>
+            <input type="url" id="ir-url" placeholder="https://drive.google.com/file/d/...">
+            <div style="font-size:10px;color:var(--text3);margin-top:3px">📋 Naming convention: <code>YYYY-MM-DD — IR — [Grievance #] — [Brief description].pdf</code><br>e.g. <em>2026-03-24 — IR — 32-2026 — Scheduling data request.pdf</em></div>
+          </div>
+        </div>
         <button class="btn btn-primary btn-sm" onclick="addInfoRequest()">Add Request</button>
       </div>
       <div id="cf-inforeq-list"></div>
@@ -873,7 +880,7 @@ tr:hover td{background:#faf9f7}
       <div class="form-field" style="flex:3"><label>Summary / key provisions</label><textarea id="rl-summary" rows="3" placeholder="Briefly describe what this document establishes, any key commitments, and why it matters as a reference..."></textarea></div>
     </div>
     <div class="form-row">
-      <div class="form-field" style="flex:3"><label>Google Drive link <span style="font-weight:400;color:var(--text3)">(paste the Drive URL — preferred over file upload)</span></label><input type="url" id="rl-drive-url" placeholder="https://drive.google.com/file/d/..."></div>
+      <div class="form-field" style="flex:3"><label>Google Drive link <span style="font-weight:400;color:var(--text3)">(paste the Drive URL — preferred over file upload)</span></label><input type="url" id="rl-drive-url" placeholder="https://drive.google.com/file/d/..."><div style="font-size:10px;color:var(--text3);margin-top:3px">📋 Naming: MOU: <em>YYYY-MM-DD — MOU — Description.pdf</em> · Settlement: <em>YYYY-MM-DD — Settlement — G#.pdf</em> · Arb: <em>YYYY-MM-DD — Arb Award — Description.pdf</em></div></div>
     </div>
     <div class="form-row">
       <div class="form-field"><label>Upload file <span style="font-weight:400;color:var(--text3)">(only if not already in Drive)</span></label>
@@ -2310,16 +2317,17 @@ function addInfoRequest(){
   if(!what)return alert('Description required');
   const dateVal=document.getElementById('ir-date').value||today();
   const due=document.getElementById('ir-due').value;
+  const url=document.getElementById('ir-url')?.value.trim()||'';
   const g=grievances.find(x=>x.id==activeCaseId);
   const cd=getCaseData(activeCaseId);
-  const req={id:Date.now(),what,how:document.getElementById('ir-how').value,to:document.getElementById('ir-to').value.trim(),date:dateVal,due,received:false,receivedDate:'',notes:''};
+  const req={id:Date.now(),what,how:document.getElementById('ir-how').value,to:document.getElementById('ir-to').value.trim(),date:dateVal,due,url,received:false,receivedDate:'',notes:''};
   cd.infoRequests.push(req);
   // Auto-add to mgmt owes
   mgmtOwes.unshift({id:Date.now()+1,what:'Info request: '+what+(g?' (Grievance #'+g.num+')':''),type:'Information request (Art. 16 Sec. 3)',due:due||'',gnum:g?g.num:'',contact:req.to,pri:'med',notes:'Requested '+dateVal+' via '+req.how,received:false,receivedDate:'',created:today()});
   // Also log in event log
-  cd.notes.push({id:Date.now()+2,text:'Information request filed (Art. 16 Sec. 3): '+what+' — sent to '+req.to+' via '+req.how,type:'union-info-request',date:dateVal,ts:new Date().toISOString()});
+  cd.notes.push({id:Date.now()+2,text:'Information request filed (Art. 16 Sec. 3): '+what+' — sent to '+req.to+' via '+req.how+(url?' — document linked':''),type:'union-info-request',date:dateVal,ts:new Date().toISOString()});
   sbSaveCaseData(activeCaseId);renderCFInfoReq();renderCFActivity();
-  ['ir-what','ir-date','ir-due','ir-to'].forEach(id=>document.getElementById(id).value='');
+  ['ir-what','ir-date','ir-due','ir-to','ir-url'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});
 }
 
 function renderCFInfoReq(){
@@ -2345,6 +2353,7 @@ function renderCFInfoReq(){
           <div style="font-size:13px;font-weight:600;color:var(--text)">${escHtml(r.what)}</div>
           <div style="font-size:11px;color:var(--text3);margin-top:3px">Requested ${r.date||'—'} · ${r.how} · To: ${r.to||'—'}</div>
           <div class="${dueCls}" style="font-size:12px;margin-top:4px">${dueHtml}</div>
+          ${r.url?`<div style="margin-top:4px"><a href="${escHtml(r.url)}" target="_blank" class="btn btn-sm btn-green" style="font-size:11px">📂 View request document</a></div>`:''}
         </div>
         <div style="display:flex;gap:4px;flex-shrink:0">
           ${!r.received?`<button class="btn btn-sm btn-green" style="font-size:11px" onclick="markIRReceived(${activeCaseId},${i})">✓ Received</button>`:''}
