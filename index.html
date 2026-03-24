@@ -2388,34 +2388,74 @@ function delG(id){if(!confirm('Remove?'))return;sbDeleteGrievance(id);populateFi
 // ── CASE FILE ────────────────────────────────────────────────────────
 function openCaseFile(id){
   const g=grievances.find(x=>x.id==id);
-  if(!g){
-    alert('Could not find grievance with id: '+id+' (type: '+typeof id+')\nTotal grievances loaded: '+grievances.length);
-    return;
-  }
+  if(!g){alert('Grievance not found: '+id);return;}
   activeCaseId=id;
-  document.getElementById('grievance-list-view').style.display='none';
-  document.getElementById('case-file-view').style.display='block';
-  document.getElementById('cf-title').textContent='Grievance '+g.num+' — '+(g.brief||g.type||'');
-  document.getElementById('cf-status-badge').innerHTML=statusBadge(g.status||'');
-  // Show diagnostic panel first so any errors are visible
-  const diagEl=document.getElementById('cf-details');
-  if(diagEl)diagEl.innerHTML='<div style="padding:10px;font-size:12px;color:#888">Loading case details...</div>';
-  try{
-    renderCFDetails();
-  }catch(e){
-    const errMsg='renderCFDetails failed: '+e.message;
-    console.error(errMsg,e);
-    if(diagEl)diagEl.innerHTML='<div style="padding:12px;background:#fcebeb;border-radius:8px;font-size:13px;color:#a32d2d">'+
-      '<strong>Error opening case details</strong><br>'+escHtml(errMsg)+'<br><br>'+
-      '<small>Grievance: '+escHtml(g.num)+' | Status: '+escHtml(g.status||'')+'</small></div>';
+
+  // Create or reuse modal overlay
+  let modal=document.getElementById('cf-modal-overlay');
+  if(!modal){
+    modal=document.createElement('div');
+    modal.id='cf-modal-overlay';
+    modal.style.cssText='position:fixed;top:0;left:0;width:100%;height:100%;background:#fff;z-index:500;overflow-y:auto;padding:24px;box-sizing:border-box';
+    document.body.appendChild(modal);
   }
-  const firstTab=document.querySelector('.cf-tab');
-  if(firstTab){
-    try{setCFTab('activity',firstTab);}catch(e){console.error('setCFTab error:',e);}
-  }
-  try{renderCFActivity();}catch(e){console.error('renderCFActivity:',e);}
-  try{renderCFChecklist();}catch(e){console.error('renderCFChecklist:',e);}
-  try{renderCFMeetings();}catch(e){console.error('renderCFMeetings:',e);}
+  modal.style.display='block';
+
+  // Build header
+  modal.innerHTML='';
+  const hdr=document.createElement('div');
+  hdr.style.cssText='display:flex;align-items:center;gap:10px;margin-bottom:20px;flex-wrap:wrap;border-bottom:2px solid #e0e0e0;padding-bottom:16px';
+  const backBtn=document.createElement('button');
+  backBtn.className='btn btn-sm';
+  backBtn.textContent='← Back to log';
+  backBtn.onclick=()=>{modal.style.display='none';showPanel('grievances',document.querySelector('[onclick*="grievances"]'));};
+  const title=document.createElement('h1');
+  title.style.cssText='margin:0;flex:1;font-size:18px';
+  title.textContent='Grievance '+g.num+' — '+(g.brief||g.type||'');
+  const badge=document.createElement('span');
+  badge.innerHTML=statusBadge(g.status||'');
+  hdr.appendChild(backBtn);hdr.appendChild(title);hdr.appendChild(badge);
+  modal.appendChild(hdr);
+
+  // Details card
+  const detailCard=document.createElement('div');
+  detailCard.className='card';
+  detailCard.id='cf-details';
+  modal.appendChild(detailCard);
+
+  // Tabs
+  const tabBar=document.createElement('div');
+  tabBar.style.cssText='display:flex;gap:0;border-bottom:1px solid var(--border);margin:16px 0';
+  const tabNames=[['activity','Event Log'],['inforeq','Info Requests'],['checklist','Documents'],['meetings','Linked Meetings'],['refs','References'],['prep','Meeting Prep'],['calc','⏱ Deadlines']];
+  tabNames.forEach(([name,label],i)=>{
+    const btn=document.createElement('button');
+    btn.className='cf-tab'+(i===0?' active':'');
+    btn.textContent=label;
+    btn.onclick=function(){setCFTab(name,this);};
+    tabBar.appendChild(btn);
+  });
+  modal.appendChild(tabBar);
+
+  // Tab content containers
+  tabNames.forEach(([name],i)=>{
+    // Try to clone existing tab content from the hidden case-file-view
+    const existing=document.getElementById('cf-tab-'+name);
+    if(existing){
+      const clone=existing.cloneNode(true);
+      clone.id='cf-modal-tab-'+name;
+      clone.style.display=i===0?'block':'none';
+      modal.appendChild(clone);
+    }
+  });
+
+  // Override setCFTab to work with modal tabs
+  window._cfTabMode='modal';
+
+  // Render details
+  try{renderCFDetails();}catch(e){detailCard.textContent='Error: '+e.message;}
+  try{renderCFActivity();}catch(e){console.error(e);}
+  try{renderCFChecklist();}catch(e){console.error(e);}
+
   const evtDate=document.getElementById('cf-evt-date');
   if(evtDate)evtDate.value=today();
 }
