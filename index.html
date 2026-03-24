@@ -1173,7 +1173,11 @@ async function loadAllData(){
   deadlines=(dl||[]);
   timeLog=(tl||[]).map(e=>({...e,mins:e.mins}));
   mgmtOwes=(mo||[]).map(mapMgmtOwes);
-  refLib=(rl||[]);
+  refLib=(rl||[]).map(r=>({...r,
+    driveUrl:r.drive_url||r.driveUrl||'',
+    fileName:r.file_name||r.fileName||'',
+    fileData:r.file_data||r.fileData||null
+  }));
   // caseData: convert array to keyed object
   caseData={};
   (cd||[]).forEach(row=>{
