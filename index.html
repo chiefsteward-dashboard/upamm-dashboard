@@ -3850,40 +3850,28 @@ async function gcalDeleteEvent(eventId){
 async function driveUploadFile(folderId,filename,content,mimeType){
   if(!await ensureGoogleToken())return null;
   try{
+    // Include driveId for shared drive support
+    const metadata={name:filename,parents:[folderId]};
     const form=new FormData();
-    form.append('metadata',new Blob([JSON.stringify({name:filename,parents:[folderId]})],{type:'application/json'}));
+    form.append('metadata',new Blob([JSON.stringify(metadata)],{type:'application/json'}));
     form.append('file',new Blob([content],{type:mimeType||'text/plain'}));
-    const resp=await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart',{
+    // supportsAllDrives + includeItemsFromAllDrives required for shared/team drives
+    const url='https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true&includeItemsFromAllDrives=true';
+    const resp=await fetch(url,{
       method:'POST',headers:{'Authorization':'Bearer '+googleAccessToken},body:form
     });
     const data=await resp.json();
     if(!resp.ok){
       const errMsg=data?.error?.message||resp.status;
-      console.error('Drive upload failed ('+errMsg+') for folder:',folderId,'file:',filename);
+      console.error('Drive upload failed ('+errMsg+') folder:',folderId,'file:',filename);
       if(resp.status===401||resp.status===403){
         googleAccessToken=null;
         const btn=document.getElementById('reconnect-google-btn');
         if(btn)btn.style.display='block';
-        return null;
-      }
-      if(resp.status===404){
-        // Folder not found — try saving to Drive root as fallback
-        console.warn('Folder not found, trying Drive root...');
-        const form2=new FormData();
-        form2.append('metadata',new Blob([JSON.stringify({name:filename})],{type:'application/json'}));
-        form2.append('file',new Blob([content],{type:mimeType||'text/plain'}));
-        const resp2=await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart',{
-          method:'POST',headers:{'Authorization':'Bearer '+googleAccessToken},body:form2
-        });
-        const data2=await resp2.json();
-        if(resp2.ok&&data2.id){
-          console.log('Saved to Drive root as fallback:',filename);
-          return 'https://drive.google.com/file/d/'+data2.id+'/view';
-        }
       }
       return null;
     }
-    console.log('Drive upload success:',filename);
+    console.log('Drive upload success:',filename,data.id);
     return data.id?'https://drive.google.com/file/d/'+data.id+'/view':null;
   }catch(e){console.error('Drive upload error:',e.message);return null;}
 }
