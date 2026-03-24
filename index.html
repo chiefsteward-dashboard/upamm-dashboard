@@ -2288,7 +2288,7 @@ function addInfoRequest(){
 function renderCFInfoReq(){
   if(!activeCaseId)return;
   const cd=getCaseData(activeCaseId);
-  const el=document.getElementById('cf-inforeq-list');
+  const _m=document.getElementById('cf-modal-overlay');const _mOpen=_m&&_m.style.display!=='none';const el=(_mOpen&&_m.querySelector('#cf-inforeq-list'))||document.getElementById('cf-inforeq-list');
   if(!cd.infoRequests||!cd.infoRequests.length){
     el.innerHTML='<div class="card" style="color:#aaa;font-size:13px;text-align:center;padding:20px">No information requests logged for this case.<br><span style="font-size:12px;margin-top:4px;display:block">Art. 16 Sec. 3: upon written request from the Union, the Employer shall provide relevant information necessary to properly process a grievance.</span></div>';return;
   }
@@ -2633,8 +2633,12 @@ function closeCaseFile(){
 function setCFTab(name,btn){
   document.querySelectorAll('.cf-tab').forEach(t=>t.classList.remove('active'));
   btn.classList.add('active');
+  // Check if we're in modal mode
+  const modal=document.getElementById('cf-modal-overlay');
+  const inModal=modal&&modal.style.display!=='none';
+  const prefix=inModal?'cf-modal-tab-':'cf-tab-';
   ['activity','inforeq','checklist','meetings','refs','prep','calc'].forEach(t=>{
-    const el=document.getElementById('cf-tab-'+t);
+    const el=document.getElementById(prefix+t);
     if(el)el.style.display=t===name?'block':'none';
   });
   if(name==='prep')renderPrepChecklist();
@@ -2683,7 +2687,7 @@ function renderCFMeetings(){
   if(!activeCaseId)return;
   const g=grievances.find(x=>x.id==activeCaseId);if(!g)return;
   const linked=meetings.filter(m=>m.gnum&&m.gnum.trim()===g.num.trim());
-  const el=document.getElementById('cf-linked-meetings');
+  const _m=document.getElementById('cf-modal-overlay');const _mOpen=_m&&_m.style.display!=='none';const el=(_mOpen&&_m.querySelector('#cf-linked-meetings'))||document.getElementById('cf-linked-meetings');
   if(!linked.length){
     el.innerHTML=`<div class="card" style="color:#aaa;font-size:13px;text-align:center;padding:20px">
       No meeting notes linked to Grievance #${escHtml(g.num)} yet.<br>
@@ -3330,7 +3334,7 @@ const PREP_CHECKLISTS={
 
 function renderPrepChecklist(){
   const type=document.getElementById('prep-type').value;
-  const el=document.getElementById('prep-checklist-body');
+  const _m=document.getElementById('cf-modal-overlay');const _mOpen=_m&&_m.style.display!=='none';const el=(_mOpen&&_m.querySelector('#prep-checklist-body'))||document.getElementById('prep-checklist-body');
   if(!type){el.innerHTML='';return;}
   const pl=PREP_CHECKLISTS[type];if(!pl){el.innerHTML='';return;}
   const g=activeCaseId?grievances.find(x=>x.id==activeCaseId):null;
@@ -3596,7 +3600,7 @@ function refDocCard(r,compact){
 function renderCFRefs(){
   if(!activeCaseId)return;
   const g=grievances.find(x=>x.id==activeCaseId);if(!g)return;
-  const el=document.getElementById('cf-refs-list');
+  const _m=document.getElementById('cf-modal-overlay');const _mOpen=_m&&_m.style.display!=='none';const el=(_mOpen&&_m.querySelector('#cf-refs-list'))||document.getElementById('cf-refs-list');
   // Match references by article overlap or linked grievance number
   const gArticles=(g.articles||'').toLowerCase().split(/[,\s]+/).filter(Boolean);
   const matched=refLib.filter(r=>{
@@ -3853,8 +3857,35 @@ async function driveUploadFile(folderId,filename,content,mimeType){
       method:'POST',headers:{'Authorization':'Bearer '+googleAccessToken},body:form
     });
     const data=await resp.json();
+    if(!resp.ok){
+      const errMsg=data?.error?.message||resp.status;
+      console.error('Drive upload failed ('+errMsg+') for folder:',folderId,'file:',filename);
+      if(resp.status===401||resp.status===403){
+        googleAccessToken=null;
+        const btn=document.getElementById('reconnect-google-btn');
+        if(btn)btn.style.display='block';
+        return null;
+      }
+      if(resp.status===404){
+        // Folder not found — try saving to Drive root as fallback
+        console.warn('Folder not found, trying Drive root...');
+        const form2=new FormData();
+        form2.append('metadata',new Blob([JSON.stringify({name:filename})],{type:'application/json'}));
+        form2.append('file',new Blob([content],{type:mimeType||'text/plain'}));
+        const resp2=await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart',{
+          method:'POST',headers:{'Authorization':'Bearer '+googleAccessToken},body:form2
+        });
+        const data2=await resp2.json();
+        if(resp2.ok&&data2.id){
+          console.log('Saved to Drive root as fallback:',filename);
+          return 'https://drive.google.com/file/d/'+data2.id+'/view';
+        }
+      }
+      return null;
+    }
+    console.log('Drive upload success:',filename);
     return data.id?'https://drive.google.com/file/d/'+data.id+'/view':null;
-  }catch(e){console.error('Drive upload',e);return null;}
+  }catch(e){console.error('Drive upload error:',e.message);return null;}
 }
 
 async function driveSaveBackup(){
