@@ -1720,8 +1720,9 @@ function renderOneOffs(){
   el.innerHTML=sorted.map(o=>{
     const gcalUrl=o.date?buildGCalUrl(o.name,o.date,o.time,o.notes):'';
     const dispDate=o.date?o.date.replace(/(\d{4})-(\d{2})-(\d{2})/,'$2/$3/$1'):'TBD';
-    // Show Start note button for today or past meetings
+    // Show Start note button for all meetings — different label for future vs past
     const isPast=o.date&&o.date<=todayStr;
+    const noteLabel=isPast?'📝 Start note →':'📝 Prep note →';
     const template=typeToTemplate[o.type]||'';
     return`
     <div class="sched-entry" id="oo-${o.id}">
@@ -1729,7 +1730,7 @@ function renderOneOffs(){
       <span class="sched-label"><strong>${escHtml(o.name)}</strong>${o.notes?' — <span style="color:#aaa">'+escHtml(o.notes)+'</span>':''}</span>
       <span class="sched-day">${o.type}</span>
       <div style="display:flex;gap:4px;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end">
-        ${isPast?`<button class="btn btn-sm btn-primary" style="font-size:11px" onclick="startNoteFromSchedule(${o.id})">📝 Start note →</button>`:''}
+        <button class="btn btn-sm btn-primary" style="font-size:11px" onclick="startNoteFromSchedule(${o.id})">${noteLabel}</button>
         ${gcalUrl?`<a href="${gcalUrl}" target="_blank" class="btn-gcal">+ GCal</a>`:''}
         <button class="btn btn-sm" onclick="editOneOff(${o.id})">Edit</button>
         <button class="btn btn-sm btn-danger" onclick="delOneOff(${o.id})">✕</button>
@@ -2097,12 +2098,42 @@ function confirmNewMeetingTask(){
 function createTaskFromMeeting(mtgId){
   const m=meetings.find(x=>x.id==mtgId);if(!m)return;
   const label=TYPE_LABELS[m.type]||m.type;
-  const title=prompt('Task title:','Follow up: '+label+(m.gnum?' #'+m.gnum:''));
-  if(!title)return;
-  const task={id:Date.now(),title,pri:'high',due:'',gnum:m.gnum||'',cat:'Grievance',rec:'',assignee:'me',done:false,created:today()};
+  const existing=document.getElementById('new-mtg-task-popup');if(existing)existing.remove();
+  const popup=document.createElement('div');
+  popup.id='new-mtg-task-popup';
+  popup.style.cssText='position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#fff;border:1px solid var(--border);border-radius:var(--radius-lg);padding:24px;max-width:440px;width:90%;z-index:9999;box-shadow:0 8px 40px rgba(0,0,0,0.15)';
+  popup.innerHTML=
+    '<div style="font-size:15px;font-weight:700;color:var(--navy);margin-bottom:4px">Create Task</div>'+
+    '<div style="font-size:12px;color:var(--text3);margin-bottom:16px">From: '+escHtml(label)+(m.gnum?' — Grievance #'+m.gnum:'')+'</div>'+
+    '<div class="form-field" style="margin-bottom:10px"><label>Task description</label><input type="text" id="cmtg-title" value="Follow up: '+escHtml(label+(m.gnum?' #'+m.gnum:''))+'" style="width:100%"></div>'+
+    '<div style="display:flex;gap:8px;margin-bottom:10px">'+
+    '<div class="form-field"><label>Priority</label><select id="cmtg-pri"><option value="high">High</option><option value="med" selected>Medium</option><option value="low">Low</option></select></div>'+
+    '<div class="form-field"><label>Due date</label><input type="date" id="cmtg-due"></div>'+
+    '<div class="form-field"><label>Assigned to</label><select id="cmtg-assignee"><option value="me">Me</option><option value="mgmt">Management</option></select></div>'+
+    '</div>'+
+    '<div style="display:flex;gap:8px">'+
+    '<button class="btn btn-primary" onclick="confirmTaskFromMeeting('+mtgId+')">Create Task</button>'+
+    '<button class="btn" onclick="document.getElementById(\'new-mtg-task-popup\').remove()">Cancel</button></div>';
+  document.body.appendChild(popup);
+  setTimeout(()=>{
+    const ti=document.getElementById('cmtg-title');if(ti){ti.focus();ti.select();}
+    document.addEventListener('click',function h(e){if(!popup.contains(e.target)){popup.remove();document.removeEventListener('click',h);}});
+  },100);
+}
+
+function confirmTaskFromMeeting(mtgId){
+  const m=meetings.find(x=>x.id==mtgId);if(!m)return;
+  const title=document.getElementById('cmtg-title')?.value.trim();
+  if(!title)return alert('Please enter a task description.');
+  const task={id:Date.now(),title,
+    pri:document.getElementById('cmtg-pri')?.value||'high',
+    due:document.getElementById('cmtg-due')?.value||'',
+    gnum:m.gnum||'',cat:'Grievance',rec:'',
+    assignee:document.getElementById('cmtg-assignee')?.value||'me',
+    done:false,created:today()};
   tasks.unshift(task);
   sbSaveTask(task);renderTaskMetrics();renderTasks();
-  alert('Task created. Go to Tasks to set a due date.');
+  document.getElementById('new-mtg-task-popup')?.remove();
 }
 
 // ── GRIEVANCES & CASE FILES ──────────────────────────────────────────
