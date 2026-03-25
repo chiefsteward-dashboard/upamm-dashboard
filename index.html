@@ -366,7 +366,12 @@ tr:hover td{background:#faf9f7}
   <h1>Weekly Schedule</h1>
   <p class="subtitle">Your recurring blocks + standing meetings</p>
   <div class="card">
-    <div class="card-title">Tuesday AM</div>
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+      <div class="card-title" style="margin:0;flex:1">Tuesday AM</div>
+      <button class="btn btn-sm" onclick="editSchedBlock('tue')">✏️ Edit</button>
+      <button class="btn-gcal" onclick="pushSchedToGCal('tue')">📅 GCal</button>
+    </div>
+    <div id="sched-tue-content">
     <div class="day-block d-tue"><div class="d-title">8:00 – 8:20 | Grievance deadline review</div>
       <div class="d-task">Scan all open grievances for deadlines in next 14 days</div>
       <div class="d-task">Flag any Step responses due or arbitration notices needed</div>
@@ -385,9 +390,26 @@ tr:hover td{background:#faf9f7}
       <div class="d-task">Note new potential grievances — calendar the 21-day window</div>
       <div class="d-task">Contract research, MOU review, or meeting prep</div>
     </div>
+    </div>
+    <div id="sched-tue-edit" style="display:none;background:#f9f8f6;border:1px solid var(--border);border-radius:var(--radius);padding:14px">
+      <div class="form-row">
+        <div class="form-field" style="max-width:160px"><label>Start time</label><input type="time" id="se-tue-time" value="08:00"></div>
+        <div class="form-field" style="flex:2"><label>Zoom / location</label><input type="text" id="se-tue-zoom" placeholder="Zoom link or room..."></div>
+      </div>
+      <div class="form-row"><div class="form-field"><label>Notes</label><textarea id="se-tue-notes" rows="4" placeholder="Describe your Tuesday AM block..."></textarea></div></div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-primary btn-sm" onclick="saveSchedBlock('tue')">Save</button>
+        <button class="btn btn-sm" onclick="document.getElementById('sched-tue-edit').style.display='none';document.getElementById('sched-tue-content').style.display='block'">Cancel</button>
+      </div>
+    </div>
   </div>
   <div class="card">
-    <div class="card-title">Thursday AM — Two patterns (alternating)</div>
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+      <div class="card-title" style="margin:0;flex:1">Thursday AM — Two patterns (alternating)</div>
+      <button class="btn btn-sm" onclick="editSchedBlock('thu')">✏️ Edit</button>
+      <button class="btn-gcal" onclick="pushSchedToGCal('thu')">📅 GCal</button>
+    </div>
+    <div id="sched-thu-content">
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
       <div>
         <div style="font-size:11px;font-weight:700;color:var(--purple);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">Workload Touchbase Thursday (every other week)</div>
@@ -419,6 +441,18 @@ tr:hover td{background:#faf9f7}
     <div class="day-block d-amber" style="margin-top:10px"><div class="d-title">Thursday Evening | Officer Meeting (weeks without workload touchbase)</div>
       <div class="d-task">Present officer update — generate from Officer Update tab</div>
     </div>
+    </div><!-- /sched-thu-content -->
+    <div id="sched-thu-edit" style="display:none;background:#f9f8f6;border:1px solid var(--border);border-radius:var(--radius);padding:14px">
+      <div class="form-row">
+        <div class="form-field" style="max-width:160px"><label>Start time</label><input type="time" id="se-thu-time" value="08:00"></div>
+        <div class="form-field" style="flex:2"><label>Zoom / location</label><input type="text" id="se-thu-zoom" placeholder="Zoom link or room..."></div>
+      </div>
+      <div class="form-row"><div class="form-field"><label>Notes</label><textarea id="se-thu-notes" rows="4" placeholder="Describe your Thursday AM block..."></textarea></div></div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-primary btn-sm" onclick="saveSchedBlock('thu')">Save</button>
+        <button class="btn btn-sm" onclick="document.getElementById('sched-thu-edit').style.display='none';document.getElementById('sched-thu-content').style.display='block'">Cancel</button>
+      </div>
+    </div>
   </div>
   <div class="card">
     <div class="card-title">Monthly — First Tuesday of Month</div>
@@ -441,7 +475,8 @@ tr:hover td{background:#faf9f7}
         <div class="form-field"><label>Frequency</label><select id="rm-freq"><option>Weekly</option><option>Bi-weekly</option><option>Monthly</option></select></div>
       </div>
       <div class="form-row">
-        <div class="form-field" style="flex:2"><label>Notes / Location</label><input type="text" id="rm-notes" placeholder="Zoom link, room..."></div>
+        <div class="form-field" style="flex:2"><label>Notes / Location</label><input type="text" id="rm-notes" placeholder="Room, building..."></div>
+        <div class="form-field" style="flex:2"><label>Zoom link</label><input type="url" id="rm-zoom" placeholder="https://umich.zoom.us/j/..."></div>
         <div class="form-field"><label>Default note template</label>
           <select id="rm-template">
             <option value="">— Auto-detect —</option>
@@ -479,6 +514,7 @@ tr:hover td{background:#faf9f7}
       </div>
       <div class="form-row">
         <div class="form-field" style="flex:2"><label>Notes</label><input type="text" id="oo-notes" placeholder="Grievance #, location, attendees..."></div>
+        <div class="form-field" style="flex:2"><label>Zoom link</label><input type="url" id="oo-zoom" placeholder="https://umich.zoom.us/j/..."></div>
         <div class="form-field"><label>Note template</label>
           <select id="oo-template">
             <option value="">— Auto-detect —</option>
@@ -681,6 +717,9 @@ tr:hover td{background:#faf9f7}
                 <option value="mgmt-response-received">Management response received</option>
                 <option value="mgmt-mtg-scheduled">Meeting scheduled by management</option>
                 <option value="mgmt-mtg-held">Meeting held</option>
+                <option value="step1-meeting-held">Step 1 meeting held</option>
+                <option value="step2-meeting-held">Step 2 meeting held</option>
+                <option value="step3-filed">Step 3 filed (union grievance)</option>
                 <option value="mgmt-extension">Extension agreed (mgmt requested)</option>
                 <option value="mgmt-info-received">Information request fulfilled</option>
                 <option value="mgmt-denied">Grievance denied</option>
@@ -698,6 +737,13 @@ tr:hover td{background:#faf9f7}
         </div>
         <div class="form-row">
           <div class="form-field" style="flex:3"><label>Notes</label><input type="text" id="cf-evt-notes" placeholder="Details, who was present, key points..." onkeydown="if(event.key==='Enter')addCaseEvent()"></div>
+        </div>
+        <div style="margin-bottom:8px">
+          <button type="button" id="cf-attach-toggle" class="btn btn-sm" style="font-size:11px" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'flex':'none'">＋ attach doc</button>
+          <div style="display:none;gap:8px;margin-top:6px;flex-wrap:wrap;align-items:flex-end">
+            <div class="form-field"><label>Doc label</label><input type="text" id="cf-evt-doclabel" placeholder="e.g. Step 2 filing" style="font-size:12px"></div>
+            <div class="form-field" style="flex:2"><label>Drive URL</label><input type="url" id="cf-evt-url" placeholder="https://drive.google.com/..." style="font-size:12px"></div>
+          </div>
         </div>
         <!-- Extension reason — shown conditionally -->
         <div id="cf-ext-row" style="display:none" class="form-row">
@@ -1246,7 +1292,7 @@ function showPanel(id,el){
   document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
   document.getElementById('panel-'+id).classList.add('active');
   el.classList.add('active');
-  const init={calendar:initCalendar,deadlines:()=>{renderDlMetrics();renderDeadlines();},tasks:()=>{renderTaskMetrics();renderTasks();},grievances:()=>{populateFilters();renderGrievances();renderGMetrics();render21DayBanner();},stewards:()=>{renderStewardMetrics();renderStewards();},'mgmt-owes':()=>{renderMgmtOwes();},reflib:()=>{renderRefLib();},time:()=>{updateTimeMetrics();renderTimeLog();},notes:()=>{document.getElementById('n-date').value=today();renderNotes();},meetings:()=>{document.getElementById('mt-date').value=today();renderMeetings();},schedule:()=>{renderRecurring();renderOneOffs();},update:()=>{renderStatsChart();}};
+  const init={calendar:initCalendar,deadlines:()=>{renderDlMetrics();renderDeadlines();},tasks:()=>{renderTaskMetrics();renderTasks();},grievances:()=>{populateFilters();renderGrievances();renderGMetrics();render21DayBanner();},stewards:()=>{renderStewardMetrics();renderStewards();},'mgmt-owes':()=>{renderMgmtOwes();},reflib:()=>{renderRefLib();},time:()=>{updateTimeMetrics();renderTimeLog();},notes:()=>{document.getElementById('n-date').value=today();renderNotes();},meetings:()=>{document.getElementById('mt-date').value=today();renderMeetings();},schedule:()=>{renderRecurring();renderOneOffs();loadSchedBlocks();},update:()=>{renderStatsChart();}};
   if(init[id])init[id]();
 }
 
@@ -1664,10 +1710,10 @@ function meetingToGCal(){
 function toggleForm(id){const f=document.getElementById(id);f.style.display=f.style.display==='none'?'block':'none';}
 function addRecurring(){
   const name=document.getElementById('rm-name').value.trim();if(!name)return alert('Name required');
-  const r={id:Date.now(),name,day:document.getElementById('rm-day').value,time:document.getElementById('rm-time').value,freq:document.getElementById('rm-freq').value,notes:document.getElementById('rm-notes').value,template:document.getElementById('rm-template').value};
+  const r={id:Date.now(),name,day:document.getElementById('rm-day').value,time:document.getElementById('rm-time').value,freq:document.getElementById('rm-freq').value,notes:document.getElementById('rm-notes').value,zoom:(document.getElementById('rm-zoom')?.value||'').trim(),template:document.getElementById('rm-template').value};
   recurring.push(r);
   sbSaveRecurring(r);renderRecurring();toggleForm('add-recurring-form');
-  ['rm-name','rm-time','rm-notes'].forEach(id=>document.getElementById(id).value='');
+  ['rm-name','rm-time','rm-notes','rm-zoom'].forEach(id=>{const el=document.getElementById(id);if(el)el.value=''});
   document.getElementById('rm-template').value='';
 }
 function renderRecurring(){
@@ -1676,7 +1722,7 @@ function renderRecurring(){
   el.innerHTML=recurring.map(r=>`
     <div class="sched-entry" id="re-${r.id}">
       <span class="sched-time">${r.time||'—'}</span>
-      <span class="sched-label"><strong>${escHtml(r.name)}</strong>${r.notes?' — <span style="color:#aaa">'+escHtml(r.notes)+'</span>':''}${r.template?` <span style="font-size:10px;background:var(--purple-light);color:var(--purple);padding:1px 6px;border-radius:99px">${TYPE_LABELS[r.template]||r.template}</span>`:''}</span>
+      <span class="sched-label"><strong>${escHtml(r.name)}</strong>${r.notes?' — <span style="color:#aaa">'+escHtml(r.notes)+'</span>':''}${r.zoom?` <a href="${escHtml(r.zoom)}" target="_blank" class="btn-gcal" style="margin-left:6px">Join Zoom</a>`:''}${r.template?` <span style="font-size:10px;background:var(--purple-light);color:var(--purple);padding:1px 6px;border-radius:99px">${TYPE_LABELS[r.template]||r.template}</span>`:''}</span>
       <span class="sched-day">${r.day} · ${r.freq}</span>
       <div style="display:flex;gap:4px;flex-shrink:0">
         <button class="btn btn-sm btn-primary" style="font-size:11px" onclick="startRecurringNote(${r.id})">📝 Start note →</button>
@@ -1709,15 +1755,15 @@ function saveRecurring(id){
   r.time=document.getElementById('re-time-'+id).value;
   r.freq=document.getElementById('re-freq-'+id).value;
   r.notes=document.getElementById('re-notes-'+id).value;
-  sbSaveRecurring(recurring.find(r=>r.id===id)||{});renderRecurring();
+  sbSaveRecurring(r);renderRecurring();
 }
 function delRecurring(id){if(!confirm('Remove this recurring meeting?'))return;sbDeleteRecurring(id);renderRecurring();}
 
 function addOneOff(){
   const name=document.getElementById('oo-name').value.trim();if(!name)return alert('Name required');
-  const o={id:Date.now(),name,date:document.getElementById('oo-date').value,time:document.getElementById('oo-time').value,type:document.getElementById('oo-type').value,notes:document.getElementById('oo-notes').value,template:document.getElementById('oo-template').value};
+  const o={id:Date.now(),name,date:document.getElementById('oo-date').value,time:document.getElementById('oo-time').value,type:document.getElementById('oo-type').value,notes:document.getElementById('oo-notes').value,zoom:(document.getElementById('oo-zoom')?.value||'').trim(),template:document.getElementById('oo-template').value};
   oneoffs.push(o);sbSaveOneOff(o);renderOneOffs();toggleForm('add-oneoff-form');
-  ['oo-name','oo-date','oo-time','oo-notes'].forEach(id=>document.getElementById(id).value='');
+  ['oo-name','oo-date','oo-time','oo-notes','oo-zoom'].forEach(id=>{const el=document.getElementById(id);if(el)el.value=''});
   document.getElementById('oo-template').value='';
 }
 function renderOneOffs(){
@@ -1738,7 +1784,7 @@ function renderOneOffs(){
     return`
     <div class="sched-entry" id="oo-${o.id}">
       <span class="sched-time">${dispDate}${o.time?' '+o.time:''}</span>
-      <span class="sched-label"><strong>${escHtml(o.name)}</strong>${o.notes?' — <span style="color:#aaa">'+escHtml(o.notes)+'</span>':''}</span>
+      <span class="sched-label"><strong>${escHtml(o.name)}</strong>${o.notes?' — <span style="color:#aaa">'+escHtml(o.notes)+'</span>':''}${o.zoom?` <a href="${escHtml(o.zoom)}" target="_blank" class="btn-gcal" style="margin-left:6px">Join Zoom</a>`:''}</span>
       <span class="sched-day">${o.type}</span>
       <div style="display:flex;gap:4px;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end">
         <button class="btn btn-sm btn-primary" style="font-size:11px" onclick="startNoteFromSchedule(${o.id})">${noteLabel}</button>
@@ -1847,7 +1893,7 @@ function saveOneOff(id){
   o.time=document.getElementById('oo-etime-'+id).value;
   o.type=document.getElementById('oo-etype-'+id).value;
   o.notes=document.getElementById('oo-enotes-'+id).value;
-  sbSaveOneOff(oneoffs.find(o=>o.id===id)||{});renderOneOffs();
+  sbSaveOneOff(o);renderOneOffs();
 }
 function delOneOff(id){if(!confirm('Remove this meeting?'))return;sbDeleteOneOff(id);renderOneOffs();}
 
@@ -2174,7 +2220,9 @@ const EVT_LABELS={
   'mgmt-mtg-held':'Meeting held','mgmt-extension':'Extension agreed (mgmt request)',
   'mgmt-info-received':'Info request fulfilled','mgmt-denied':'Grievance denied',
   'resolved':'Resolved / settled','on-hold':'Placed on hold',
-  'note':'Note','action':'Action item','member':'Member contact','auto':'System'
+  'note':'Note','action':'Action item','member':'Member contact','auto':'System',
+  'step1-meeting-held':'Step 1 meeting held','step2-meeting-held':'Step 2 meeting held',
+  'step3-filed':'Step 3 filed (union grievance)'
 };
 const EVT_COLORS={
   'union-filed-step1':'var(--purple)','union-filed-step2':'var(--purple)',
@@ -2197,6 +2245,15 @@ const EVT_AUTO_DEADLINES={
     {label:'Mgmt: schedule review meeting (Art. 16J)',days:14,owner:'mgmt',moType:'Step response due'},
   ],
   'union-filed-step3':[
+    {label:'Mgmt: written Step 3 response due (Art. 16)',days:14,owner:'mgmt',moType:'Step response due'},
+  ],
+  'step1-meeting-held':[
+    {label:'Mgmt: written Step 1 response due after meeting (Art. 16H)',days:7,owner:'mgmt',moType:'Step response due'},
+  ],
+  'step2-meeting-held':[
+    {label:'Mgmt: written Step 2 response due after meeting (Art. 16J)',days:14,owner:'mgmt',moType:'Step response due'},
+  ],
+  'step3-filed':[
     {label:'Mgmt: written Step 3 response due (Art. 16)',days:14,owner:'mgmt',moType:'Step response due'},
   ],
   'mgmt-response-received':[],// handled in addCaseEvent based on context
@@ -2238,6 +2295,8 @@ function addCaseEvent(){
   const notes=getF('cf-evt-notes')?.value.trim();
   const extReason=document.getElementById('cf-ext-reason')?.value.trim()||'';
   const extNewDate=document.getElementById('cf-ext-newdate')?.value||'';
+  const evtUrl=getF('cf-evt-url')?.value.trim()||'';
+  const evtDocLabel=getF('cf-evt-doclabel')?.value.trim()||'';
   const g=grievances.find(x=>x.id==activeCaseId);
   const cd=getCaseData(activeCaseId);
   // Build event text
@@ -2246,7 +2305,7 @@ function addCaseEvent(){
   if(extReason)text+=' | Extension reason: '+extReason;
   if(extNewDate)text+=' | New deadline: '+fmtDisplay(extNewDate);
   // Log the event
-  cd.notes.push({id:Date.now(),text,type,date:dateVal,ts:new Date().toISOString()});
+  cd.notes.push({id:Date.now(),text,type,date:dateVal,ts:new Date().toISOString(),url:evtUrl,docLabel:evtDocLabel});
   // Auto-create deadlines and mgmt owes entries
   const autoD=EVT_AUTO_DEADLINES[type]||[];
   const base=parseDate(dateVal)||new Date();
@@ -2273,6 +2332,9 @@ function addCaseEvent(){
   const _en=getF('cf-evt-notes');if(_en)_en.value='';
   const _ed=getF('cf-evt-date');if(_ed)_ed.value=today();
   const _ep=getF('cf-evt-preview');if(_ep)_ep.style.display='none';
+  const _eu=getF('cf-evt-url');if(_eu)_eu.value='';
+  const _edl=getF('cf-evt-doclabel');if(_edl)_edl.value='';
+  const _att=getF('cf-attach-toggle');if(_att&&_att.nextElementSibling)_att.nextElementSibling.style.display='none';
   if(document.getElementById('cf-ext-reason'))document.getElementById('cf-ext-reason').value='';
   if(document.getElementById('cf-ext-newdate'))document.getElementById('cf-ext-newdate').value='';
 }
@@ -2310,6 +2372,7 @@ function renderCFActivity(){
           ${!isAuto?`<button class="btn btn-sm btn-danger" style="margin-left:auto;padding:2px 6px;font-size:11px" onclick="delCaseNote(${n.id})">✕</button>`:''}
         </div>
         <div class="activity-text">${escHtml(n.text)}</div>
+        ${n.url?`<div style="margin-top:4px"><a href="${escHtml(n.url)}" target="_blank" class="btn btn-sm btn-green" style="font-size:11px">📂 ${n.docLabel?escHtml(n.docLabel):'View document'}</a></div>`:''}
       </div>
     </div>`;
   }).join('')+'</div>';
@@ -2466,12 +2529,17 @@ function openCaseFile(id){
   backBtn.className='btn btn-sm';
   backBtn.textContent='← Back to log';
   backBtn.onclick=()=>{modal.style.display='none';showPanel('grievances',document.querySelector('[onclick*="grievances"]'));};
+  const notesBtn=document.createElement('button');
+  notesBtn.className='btn btn-sm';
+  notesBtn.textContent='📝 Notes';
+  notesBtn.onclick=()=>openFloatingNotes(g);
   const title=document.createElement('h1');
   title.style.cssText='margin:0;flex:1;font-size:18px';
   title.textContent='Grievance '+g.num+' — '+(g.brief||g.type||'');
   const badge=document.createElement('span');
+  badge.className='modal-status-badge';
   badge.innerHTML=statusBadge(g.status||'');
-  hdr.appendChild(backBtn);hdr.appendChild(title);hdr.appendChild(badge);
+  hdr.appendChild(backBtn);hdr.appendChild(notesBtn);hdr.appendChild(title);hdr.appendChild(badge);
   modal.appendChild(hdr);
 
   // Details card
@@ -2493,16 +2561,167 @@ function openCaseFile(id){
   });
   modal.appendChild(tabBar);
 
-  // Tab content containers
+  // Tab content containers — built fresh to avoid duplicate IDs
+  const tabHTMLBuilders={
+    activity:()=>`
+      <div class="card">
+        <div class="card-title">Log Event</div>
+        <div class="form-row">
+          <div class="form-field"><label>Event type</label>
+            <select id="cf-evt-type" onchange="updateEventForm()">
+              <optgroup label="Union actions">
+                <option value="union-filed-step1">Step 1 filed by union</option>
+                <option value="union-filed-step2">Step 2 appeal filed</option>
+                <option value="union-filed-step3">Step 3 appeal filed</option>
+                <option value="union-filed-arb">Arbitration notice filed</option>
+                <option value="union-info-request">Information request filed (Art. 16 Sec. 3)</option>
+                <option value="union-extension">Extension agreed (we granted)</option>
+                <option value="union-contact">Union contacted management</option>
+                <option value="union-withdrew">Grievance withdrawn</option>
+              </optgroup>
+              <optgroup label="Management actions">
+                <option value="mgmt-response-received">Management response received</option>
+                <option value="mgmt-mtg-scheduled">Meeting scheduled by management</option>
+                <option value="mgmt-mtg-held">Meeting held</option>
+                <option value="step1-meeting-held">Step 1 meeting held</option>
+                <option value="step2-meeting-held">Step 2 meeting held</option>
+                <option value="step3-filed">Step 3 filed (union grievance)</option>
+                <option value="mgmt-extension">Extension agreed (mgmt requested)</option>
+                <option value="mgmt-info-received">Information request fulfilled</option>
+                <option value="mgmt-denied">Grievance denied</option>
+              </optgroup>
+              <optgroup label="Status">
+                <option value="resolved">Resolved / settled</option>
+                <option value="on-hold">Placed on hold</option>
+                <option value="note">General note</option>
+                <option value="action">Action item</option>
+                <option value="member">Member contact</option>
+              </optgroup>
+            </select>
+          </div>
+          <div class="form-field" style="max-width:160px"><label>Date</label><input type="date" id="cf-evt-date" oninput="updateEventForm()"></div>
+        </div>
+        <div class="form-row">
+        <div class="form-row">
+          <div class="form-field" style="flex:3"><label>Notes</label><input type="text" id="cf-evt-notes" placeholder="Details, who was present, key points..." onkeydown="if(event.key==='Enter')addCaseEvent()"></div>
+        </div>
+        <div style="margin-bottom:8px">
+          <button type="button" id="cf-attach-toggle" class="btn btn-sm" style="font-size:11px" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display===\\'none\\'?\\'flex\\':\\'none\\'">＋ attach doc</button>
+          <div style="display:none;gap:8px;margin-top:6px;flex-wrap:wrap;align-items:flex-end">
+            <div class="form-field"><label>Doc label</label><input type="text" id="cf-evt-doclabel" placeholder="e.g. Step 2 filing" style="font-size:12px"></div>
+            <div class="form-field" style="flex:2"><label>Drive URL</label><input type="url" id="cf-evt-url" placeholder="https://drive.google.com/..." style="font-size:12px"></div>
+          </div>
+        </div>
+          <div class="form-field" style="flex:2"><label>Extension reason / agreement details</label><input type="text" id="cf-ext-reason" placeholder="e.g. Mutual written agreement — parties need additional time for information exchange"></div>
+          <div class="form-field" style="max-width:160px"><label>New deadline</label><input type="date" id="cf-ext-newdate"></div>
+        </div>
+        <div id="cf-evt-preview" style="display:none;background:#e1f5ee;border:1px solid #0f6e56;border-radius:var(--radius);padding:10px 12px;font-size:12px;color:#085041;margin-bottom:10px"></div>
+        <button class="btn btn-primary btn-sm" onclick="addCaseEvent()">Log Event</button>
+      </div>
+      <div id="cf-activity-list"></div>`,
+    inforeq:()=>`
+      <div class="card">
+        <div class="card-title">New Information Request (Art. 16 Sec. 3)</div>
+        <div class="form-row">
+          <div class="form-field" style="flex:3"><label>What was requested</label><input type="text" id="ir-what" placeholder="e.g. Scheduling data, payroll records, comparator assignments..."></div>
+          <div class="form-field" style="max-width:160px"><label>Date requested</label><input type="date" id="ir-date"></div>
+        </div>
+        <div class="form-row">
+          <div class="form-field" style="flex:2"><label>How requested</label>
+            <select id="ir-how"><option>Written — email</option><option>Written — letter</option><option>Verbal at meeting</option><option>Formal written request</option></select>
+          </div>
+          <div class="form-field"><label>Sent to</label><input type="text" id="ir-to" placeholder="Name / title"></div>
+          <div class="form-field" style="max-width:160px"><label>Response due (est.)</label><input type="date" id="ir-due"></div>
+        </div>
+        <div class="form-row">
+          <div class="form-field" style="flex:3">
+            <label>Link to request document <span style="font-weight:400;color:var(--text3)">(Google Drive URL — optional)</span></label>
+            <input type="url" id="ir-url" placeholder="https://drive.google.com/file/d/...">
+            <div style="font-size:10px;color:var(--text3);margin-top:3px">📋 Naming convention: <code>YYYY-MM-DD — IR — [Grievance #] — [Brief description].pdf</code></div>
+          </div>
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="addInfoRequest()">Add Request</button>
+      </div>
+      <div id="cf-inforeq-list"></div>`,
+    checklist:()=>`
+      <div class="card">
+        <div class="card-title">Documents &amp; Evidence Checklist</div>
+        <div id="cf-checklist"></div>
+        <div style="margin-top:12px;border-top:1px solid var(--border);padding-top:12px">
+          <div class="form-row">
+            <div class="form-field" style="flex:3"><input type="text" id="cf-doc-text" placeholder="Add custom document..." onkeydown="if(event.key==='Enter')addCaseDoc()"></div>
+            <button class="btn btn-sm btn-primary" onclick="addCaseDoc()" style="align-self:flex-end">Add</button>
+          </div>
+        </div>
+      </div>`,
+    meetings:()=>`
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap">
+        <button class="btn btn-sm btn-primary" onclick="showScheduleMeetingFromCF()">+ Schedule Meeting</button>
+      </div>
+      <div id="cf-schedule-meeting-form" style="display:none;background:#f9f8f6;border:1px solid var(--border);border-radius:var(--radius);padding:14px;margin-bottom:14px">
+        <div class="card-title" style="margin-bottom:10px">Schedule a Meeting for This Case</div>
+        <div class="form-row">
+          <div class="form-field"><label>Meeting Name</label><input type="text" id="cfm-name" placeholder="e.g. Step 2 Meeting"></div>
+          <div class="form-field"><label>Date</label><input type="date" id="cfm-date"></div>
+          <div class="form-field"><label>Time</label><input type="time" id="cfm-time"></div>
+        </div>
+        <div class="form-row">
+          <div class="form-field"><label>Type</label>
+            <select id="cfm-type"><option>Grievance meeting</option><option>Member intake</option><option>Management touchbase</option><option>Workload review</option><option>Steward check-in</option><option>Other</option></select>
+          </div>
+          <div class="form-field" style="flex:2"><label>Notes / Location / Attendees</label><input type="text" id="cfm-notes" placeholder="Attendees, Zoom link, room..."></div>
+        </div>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-primary btn-sm" onclick="saveCFScheduledMeeting()">Save Meeting</button>
+          <button class="btn btn-sm" onclick="document.getElementById('cf-schedule-meeting-form').style.display='none'">Cancel</button>
+        </div>
+      </div>
+      <div id="cf-linked-meetings"></div>`,
+    refs:()=>`<div id="cf-refs-list"></div>`,
+    prep:()=>`
+      <div class="card">
+        <div class="card-title">Meeting Prep Checklist</div>
+        <div class="form-row" style="margin-bottom:12px">
+          <div class="form-field"><label>Meeting type</label>
+            <select id="prep-type" onchange="renderPrepChecklist()">
+              <option value="">— Select meeting type —</option>
+              <option value="step1">Step 1 Grievance</option>
+              <option value="step2">Step 2 Grievance</option>
+              <option value="step3">Step 3 Grievance</option>
+              <option value="wlr-intake">Workload Review — Intake</option>
+              <option value="wlr-present">Workload Review — Union Presents</option>
+              <option value="arb">Arbitration</option>
+              <option value="lm">Labor-Management</option>
+            </select>
+          </div>
+        </div>
+        <div id="prep-checklist-body"></div>
+      </div>`,
+    calc:()=>`
+      <div class="card">
+        <div class="card-title">Article 16 Deadline Calculator</div>
+        <p style="font-size:12px;color:var(--text3);margin-bottom:14px">Enter a key date and calculate all Article 16 deadlines automatically.</p>
+        <div class="form-row">
+          <div class="form-field"><label>Event / starting date</label><input type="date" id="calc-date" oninput="calcDeadlines()"></div>
+          <div class="form-field"><label>Starting from</label>
+            <select id="calc-step" onchange="calcDeadlines()">
+              <option value="filed">Date grievance filed / member knew of violation (21-day Step 1 window)</option>
+              <option value="step1-answer">Step 1 answer received (21-day Step 2 window)</option>
+              <option value="step1-due">Step 1 answer due but not received (21-day Step 2 window)</option>
+              <option value="step2-answer">Step 2 answer received (14-day Step 3 window)</option>
+              <option value="step3-answer">Step 3 answer received (30-day arbitration window)</option>
+            </select>
+          </div>
+        </div>
+        <div id="calc-results" style="margin-top:12px"></div>
+      </div>`
+  };
   tabNames.forEach(([name],i)=>{
-    // Try to clone existing tab content from the hidden case-file-view
-    const existing=document.getElementById('cf-tab-'+name);
-    if(existing){
-      const clone=existing.cloneNode(true);
-      clone.id='cf-modal-tab-'+name;
-      clone.style.display=i===0?'block':'none';
-      modal.appendChild(clone);
-    }
+    const div=document.createElement('div');
+    div.id='cf-modal-tab-'+name;
+    div.style.display=i===0?'block':'none';
+    div.innerHTML=tabHTMLBuilders[name]?tabHTMLBuilders[name]():'';
+    modal.appendChild(div);
   });
 
   // Override setCFTab to work with modal tabs
@@ -2670,9 +2889,17 @@ function saveCFEdit(){
   }
   sbSaveGrievance(g);
   sbSaveCaseData(activeCaseId);
-  // Refresh header
-  document.getElementById('cf-title').textContent='Grievance '+g.num+' — '+(g.brief||g.type||'');
-  document.getElementById('cf-status-badge').innerHTML=statusBadge(g.status);
+  // Refresh modal header if modal is open
+  const modal=document.getElementById('cf-modal-overlay');
+  if(modal&&modal.style.display!=='none'){
+    const h1=modal.querySelector('h1');
+    if(h1)h1.textContent='Grievance '+g.num+' — '+(g.brief||g.type||'');
+    const badge=modal.querySelector('.modal-status-badge');
+    if(badge)badge.innerHTML=statusBadge(g.status);
+  }
+  // Also update off-screen static header refs if present
+  const cfTitle=document.getElementById('cf-title');if(cfTitle)cfTitle.textContent='Grievance '+g.num+' — '+(g.brief||g.type||'');
+  const cfBadge=document.getElementById('cf-status-badge');if(cfBadge)cfBadge.innerHTML=statusBadge(g.status);
   renderCFDetails();renderCFActivity();
 }
 
@@ -2738,8 +2965,30 @@ function renderCFChecklist(){
     cd.docs.map((d,i)=>`<div class="check-item${d.done?' checked':''}">
       <input type="checkbox" ${d.done?'checked':''} onchange="toggleCaseDoc(${i})">
       <span style="flex:1">${escHtml(d.text)}${d.custom?' <span style="font-size:10px;color:#aaa">(custom)</span>':''}</span>
+      ${d.url
+        ?`<a href="${escHtml(d.url)}" target="_blank" class="btn btn-sm btn-green" style="font-size:11px;padding:2px 8px">📂 Open</a>`
+        :`<button class="btn btn-sm" style="font-size:11px;padding:2px 8px" onclick="toggleDocLink(${i},this)">🔗 Link</button><input type="url" id="doc-url-${i}" placeholder="Drive URL..." style="display:none;font-size:12px;padding:4px 8px;border:1px solid var(--border);border-radius:var(--radius);flex:2" onblur="saveDocUrl(${i})" onkeydown="if(event.key==='Enter')saveDocUrl(${i})">`
+      }
       ${d.custom?`<button class="btn btn-sm btn-danger" style="padding:2px 6px;font-size:11px" onclick="delCaseDoc(${i})">✕</button>`:''}
     </div>`).join('');
+}
+
+function toggleDocLink(idx,btn){
+  const inp=document.getElementById('doc-url-'+idx);
+  if(!inp)return;
+  inp.style.display=inp.style.display==='none'?'inline-block':'none';
+  if(inp.style.display!=='none')inp.focus();
+}
+
+function saveDocUrl(idx){
+  if(!activeCaseId)return;
+  const inp=document.getElementById('doc-url-'+idx);
+  if(!inp)return;
+  const url=inp.value.trim();
+  const cd=getCaseData(activeCaseId);
+  if(cd.docs[idx])cd.docs[idx].url=url;
+  sbSaveCaseData(activeCaseId);
+  renderCFChecklist();
 }
 
 function renderCFMeetings(){
@@ -2766,13 +3015,173 @@ function renderCFMeetings(){
   </div>`).join('');
 }
 
+function showScheduleMeetingFromCF(){
+  const _m=document.getElementById('cf-modal-overlay');const _mOpen=_m&&_m.style.display!=='none';
+  const form=(_mOpen&&_m.querySelector('#cf-schedule-meeting-form'))||document.getElementById('cf-schedule-meeting-form');
+  if(!form)return;
+  // Pre-fill grievance # in name
+  const g=grievances.find(x=>x.id==activeCaseId);
+  const nameEl=(_mOpen&&_m.querySelector('#cfm-name'))||document.getElementById('cfm-name');
+  if(nameEl&&g&&!nameEl.value)nameEl.value='Grievance meeting — #'+g.num;
+  form.style.display=form.style.display==='none'?'block':'none';
+}
+
+function saveCFScheduledMeeting(){
+  if(!activeCaseId)return;
+  const _m=document.getElementById('cf-modal-overlay');const _mOpen=_m&&_m.style.display!=='none';
+  const getF=id=>(_mOpen&&_m.querySelector('#'+id))||document.getElementById(id);
+  const name=getF('cfm-name')?.value.trim();if(!name)return alert('Name required');
+  const g=grievances.find(x=>x.id==activeCaseId);
+  const o={id:Date.now(),name,date:getF('cfm-date')?.value||'',time:getF('cfm-time')?.value||'',type:getF('cfm-type')?.value||'Grievance meeting',notes:(getF('cfm-notes')?.value||'')+(g?' [Grievance #'+g.num+']':''),zoom:'',template:'step1'};
+  oneoffs.push(o);
+  sbSaveOneOff(o);
+  renderOneOffs();
+  renderCFMeetings();
+  const form=(_mOpen&&_m.querySelector('#cf-schedule-meeting-form'))||document.getElementById('cf-schedule-meeting-form');
+  if(form)form.style.display='none';
+  ['cfm-name','cfm-date','cfm-time','cfm-notes'].forEach(id=>{const el=getF(id);if(el)el.value='';});
+  // Flash confirmation
+  const linked=(_mOpen&&_m.querySelector('#cf-linked-meetings'))||document.getElementById('cf-linked-meetings');
+  if(linked){const flash=document.createElement('div');flash.style.cssText='background:#e1f5ee;border:1px solid #0f6e56;border-radius:var(--radius);padding:8px 12px;font-size:12px;color:#085041;margin-bottom:8px';flash.textContent='✓ Meeting scheduled: '+name;linked.insertBefore(flash,linked.firstChild);setTimeout(()=>flash.remove(),3000);}
+}
+
+
 function expandMtgCF(i,btn){
   const full=btn.getAttribute('data-full');
   document.getElementById('cfm-body-'+i).textContent=full;
   btn.remove();
 }
 
-// ── STEWARDS ──────────────────────────────────────────────────────────
+// ── SCHEDULE BLOCK EDIT (FEAT-04) + GCAL PUSH (FEAT-08) ──────────────
+function editSchedBlock(day){
+  const content=document.getElementById('sched-'+day+'-content');
+  const edit=document.getElementById('sched-'+day+'-edit');
+  if(!content||!edit)return;
+  // Load saved values
+  try{const saved=JSON.parse(localStorage.getItem('sched-'+day)||'{}');
+    const timeEl=document.getElementById('se-'+day+'-time');if(timeEl&&saved.time)timeEl.value=saved.time;
+    const zoomEl=document.getElementById('se-'+day+'-zoom');if(zoomEl&&saved.zoom)zoomEl.value=saved.zoom;
+    const notesEl=document.getElementById('se-'+day+'-notes');if(notesEl&&saved.notes)notesEl.value=saved.notes;
+  }catch(e){}
+  content.style.display='none';edit.style.display='block';
+}
+
+function saveSchedBlock(day){
+  const time=document.getElementById('se-'+day+'-time')?.value||'';
+  const zoom=document.getElementById('se-'+day+'-zoom')?.value.trim()||'';
+  const notes=document.getElementById('se-'+day+'-notes')?.value.trim()||'';
+  localStorage.setItem('sched-'+day,JSON.stringify({time,zoom,notes}));
+  const content=document.getElementById('sched-'+day+'-content');
+  const edit=document.getElementById('sched-'+day+'-edit');
+  // Update display if custom notes provided
+  if(notes&&content){
+    const dayClass=day==='tue'?'d-tue':'d-thu';
+    content.innerHTML=`<div class="day-block ${dayClass}">
+      <div class="d-title">${time?time+' | ':''} ${day==='tue'?'Tuesday':'Thursday'} AM Block</div>
+      <div class="d-task" style="white-space:pre-wrap">${escHtml(notes)}</div>
+      ${zoom?`<div class="d-task"><a href="${escHtml(zoom)}" target="_blank" style="color:var(--teal)">🔗 Join Zoom</a></div>`:''}
+    </div>`;
+  }
+  if(edit)edit.style.display='none';
+  if(content)content.style.display='block';
+}
+
+function loadSchedBlocks(){
+  ['tue','thu'].forEach(day=>{
+    try{const saved=JSON.parse(localStorage.getItem('sched-'+day)||'{}');
+      if(saved.notes)saveSchedBlock(day);// Re-render with saved content
+    }catch(e){}
+  });
+}
+
+async function pushSchedToGCal(day){
+  if(!googleAccessToken){alert('Google access required. Sign in first.');return;}
+  const saved=JSON.parse(localStorage.getItem('sched-'+day)||'{}');
+  const dayName=day==='tue'?'Tuesday':'Thursday';
+  const title='UPAMM Chief Steward — '+dayName+' AM Block';
+  const desc=(saved.notes||'Union duties block')+(saved.zoom?'\n\nZoom: '+saved.zoom:'');
+  if(!confirm('Create a weekly recurring GCal event for '+dayName+' AM? It will show as "Free" (transparent).'))return;
+  // Find the next occurrence of this weekday
+  const target=day==='tue'?2:4; // 0=Sun,2=Tue,4=Thu
+  const now=new Date();
+  const diff=(target-now.getDay()+7)%7||7;
+  const start=new Date(now);start.setDate(now.getDate()+diff);
+  start.setHours(parseInt((saved.time||'08:00').split(':')[0]),0,0,0);
+  const end=new Date(start);end.setHours(start.getHours()+2);
+  const fmt=d=>d.toISOString();
+  try{
+    const resp=await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events',{
+      method:'POST',
+      headers:{'Authorization':'Bearer '+googleAccessToken,'Content-Type':'application/json'},
+      body:JSON.stringify({
+        summary:title,description:desc,
+        start:{dateTime:fmt(start),timeZone:'America/Detroit'},
+        end:{dateTime:fmt(end),timeZone:'America/Detroit'},
+        recurrence:['RRULE:FREQ=WEEKLY;BYDAY='+(day==='tue'?'TU':'TH')],
+        transparency:'transparent'
+      })
+    });
+    if(resp.ok){alert('✓ Weekly '+dayName+' block added to Google Calendar (shows as Free).');}
+    else{const e=await resp.json();alert('GCal error: '+(e.error?.message||'Unknown'));}
+  }catch(e){alert('Error: '+e.message);}
+}
+
+
+function openFloatingNotes(g){
+  const existing=document.getElementById('floating-notes-panel');if(existing)existing.remove();
+  const panel=document.createElement('div');
+  panel.id='floating-notes-panel';
+  panel.style.cssText='position:fixed;bottom:24px;right:24px;width:420px;max-height:80vh;overflow-y:auto;background:#fff;border:1px solid var(--border);border-radius:var(--radius-lg);box-shadow:0 8px 40px rgba(0,0,0,0.18);z-index:600;padding:20px';
+  panel.innerHTML=`
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px">
+      <div style="font-size:15px;font-weight:700;color:var(--navy);flex:1">📝 Quick Meeting Note</div>
+      <button class="btn btn-sm" onclick="document.getElementById('floating-notes-panel').remove()">✕</button>
+    </div>
+    <div class="form-row">
+      <div class="form-field"><label>Template</label>
+        <select id="fn-type">
+          <option value="step1">Step 1</option><option value="step2">Step 2</option><option value="step3">Step 3</option>
+          <option value="intake">Member Intake</option><option value="mgmt-touchbase">Mgmt Touchbase</option>
+          <option value="lm-meeting">L-M Meeting</option><option value="wlr-intake">WLR Intake</option>
+          <option value="wlr-present">WLR Union Presents</option><option value="officer">Officer Meeting</option>
+        </select>
+      </div>
+      <div class="form-field" style="max-width:140px"><label>Date</label><input type="date" id="fn-date" value="${today()}"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-field"><label>Attendees</label><input type="text" id="fn-attendees" placeholder="Names of all present"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-field"><label>Grievance #</label><input type="text" id="fn-gnum" value="${g?escHtml(g.num):''}"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-field"><label>Notes</label><textarea id="fn-body" rows="8" placeholder="Meeting notes..."></textarea></div>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-primary btn-sm" onclick="saveFloatingNote()">Save Meeting Note</button>
+      <button class="btn btn-sm" onclick="document.getElementById('floating-notes-panel').remove()">Cancel</button>
+    </div>`;
+  document.body.appendChild(panel);
+  // Make it draggable
+  panel.querySelector('div').style.cursor='move';
+}
+
+function saveFloatingNote(){
+  const type=document.getElementById('fn-type')?.value||'step1';
+  const date=document.getElementById('fn-date')?.value||today();
+  const attendees=document.getElementById('fn-attendees')?.value.trim()||'';
+  const gnum=document.getElementById('fn-gnum')?.value.trim()||'';
+  const body=document.getElementById('fn-body')?.value.trim();
+  if(!body)return alert('Notes cannot be empty');
+  const m={id:Date.now(),type,date,attendees,gnum,body,saved:new Date().toISOString()};
+  meetings.unshift(m);
+  sbSaveMeeting(m);
+  driveSaveMeetingNote(m);
+  renderMeetings();
+  document.getElementById('floating-notes-panel')?.remove();
+}
+
+
 
 
 function addSteward(){
@@ -2781,8 +3190,9 @@ function addSteward(){
   // check duplicate
   const dup=stewards.find(s=>s.name.toLowerCase()===name.toLowerCase());
   if(dup&&!confirm(`"${name}" already exists in the roster. Add anyway?`))return;
-  stewards.push({id:Date.now(),name,unit:document.getElementById('s-unit').value.trim(),title:document.getElementById('s-title').value.trim(),phone:document.getElementById('s-phone').value.trim(),email:document.getElementById('s-email').value.trim(),emailWork:document.getElementById('s-email-work').value.trim(),areas:document.getElementById('s-areas').value.trim(),status:document.getElementById('s-status').value,updated:today(),imported:false});
-  sbSaveSteward(stewards.find(s=>s.id===id)||{});renderStewardMetrics();renderStewards();
+  const newS={id:Date.now(),name,unit:document.getElementById('s-unit').value.trim(),title:document.getElementById('s-title').value.trim(),phone:document.getElementById('s-phone').value.trim(),email:document.getElementById('s-email').value.trim(),emailWork:document.getElementById('s-email-work').value.trim(),areas:document.getElementById('s-areas').value.trim(),status:document.getElementById('s-status').value,updated:today(),imported:false};
+  stewards.push(newS);
+  sbSaveSteward(newS);renderStewardMetrics();renderStewards();
   ['s-name','s-unit','s-title','s-phone','s-email','s-email-work','s-areas'].forEach(id=>document.getElementById(id).value='');
 }
 
@@ -3356,13 +3766,15 @@ function calcDeadlines(){
   const addD=(d,n)=>{const r=new Date(d);r.setDate(r.getDate()+n);return r;};
   const fmt=d=>d.toLocaleDateString('en-US',{weekday:'short',month:'long',day:'numeric',year:'numeric'});
   const dlItem=(label,d,art)=>{
+    const isoStr=isoDate(d);
     const df=Math.round((d-todayDate())/86400000);
     const cls=df<0?'dl-red':df<=7?'dl-amber':'dl-green';
+    const setBtn=activeCaseId?`<button class="btn btn-sm" style="font-size:11px;padding:2px 8px;margin-left:6px" onclick="setCalcDeadline('${isoStr}','${label.replace(/'/g,"\\'")}')">Set as deadline</button>`:'';
     return`<div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid #f0ede8">
       <div style="min-width:140px;font-size:13px;font-weight:600;color:var(--navy)">${label}</div>
       <div style="flex:1;font-size:13px">${fmt(d)}</div>
       <div class="${cls}" style="font-size:13px;font-weight:600;min-width:80px;text-align:right">${df<0?Math.abs(df)+'d overdue':df===0?'TODAY':'in '+df+'d'}</div>
-      <div style="font-size:11px;color:var(--text3)">${art}</div>
+      <div style="font-size:11px;color:var(--text3)">${art}${setBtn}</div>
     </div>`;
   };
   let html='<div style="margin-bottom:8px;font-size:12px;color:var(--text3)">Based on: <strong>'+dateVal+'</strong></div>';
@@ -3381,7 +3793,25 @@ function calcDeadlines(){
   el.innerHTML=html;
 }
 
-// ── MEETING PREP CHECKLIST ─────────────────────────────────────────────
+// ── SET CALC DEADLINE ─────────────────────────────────────────────────
+function setCalcDeadline(isoStr,label){
+  if(!activeCaseId)return;
+  const g=grievances.find(x=>x.id==activeCaseId);if(!g)return;
+  g.deadline=isoStr;
+  sbSaveGrievance(g);
+  deadlines.push({id:Date.now(),name:label+(g?' — Grievance #'+g.num:''),date:isoStr,cat:'Grievance step',gnum:g?g.num:'',notes:'Set from deadline calculator',done:false});
+  renderGrievances();renderGMetrics();
+  // Flash confirmation
+  const _mc=document.getElementById('cf-modal-overlay');const _mOc=_mc&&_mc.style.display!=='none';
+  const el=(_mOc&&_mc.querySelector('#calc-results'))||document.getElementById('calc-results');
+  const flash=document.createElement('div');
+  flash.style.cssText='background:#e1f5ee;border:1px solid #0f6e56;border-radius:var(--radius);padding:8px 12px;font-size:12px;color:#085041;margin-bottom:8px';
+  flash.textContent='✓ Deadline set: '+label+' — '+isoStr;
+  el.insertBefore(flash,el.firstChild);
+  setTimeout(()=>flash.remove(),4000);
+}
+
+
 const PREP_CHECKLISTS={
   step1:{title:'Step 1 Grievance Meeting Prep',items:['Review the grievance facts and timeline with member','Confirm exact date member knew of violation (starts 21-day clock)','Identify all applicable CBA articles — have text ready','Prepare a clear statement of the remedy sought','Review any prior grievances on the same issue','Bring written notes — do not rely on memory','Ensure member understands their right to union representation','Confirm attendance: member, steward, supervisor','Document management rep name and title','Note the date/time for Step 1 answer deadline (+7 days)']},
   step2:{title:'Step 2 Grievance Meeting Prep',items:['Obtain Step 1 written answer (or confirm it was denied/unanswered)','Calculate Step 2 appeal deadline — 21 days from Step 1 answer','Draft or finalize the written grievance form (required at Step 2)','State the specific CBA provisions violated','State the proposed remedy clearly','Gather any new evidence since Step 1','Confirm Department Chair or designee is the respondent','Bring member and steward — confirm availability','Prepare for a formal review meeting within 14 days of filing','Note date/time for Step 2 written response deadline (+14 days of review meeting)']},
