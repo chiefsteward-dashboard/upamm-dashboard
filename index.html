@@ -648,6 +648,7 @@ tr:hover td{background:#faf9f7}
     <div class="card">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap">
         <div class="card-title" style="margin:0;flex:1">All Grievances</div>
+        <button class="btn btn-sm" onclick="showColSettings()" title="Show/hide and reorder columns">⚙ Columns</button>
         <button class="btn btn-sm" onclick="printGrievanceLog()">🖨 Print log</button>
         <button class="btn btn-sm btn-green" onclick="exportCSV('grievances')">⬇ Export CSV</button>
         <button class="btn btn-sm btn-green" onclick="exportCSV('case-notes')" style="background:var(--purple);border-color:var(--purple)">⬇ All case notes</button>
@@ -1382,10 +1383,13 @@ function stewardToDb(s,editorName){
     last_edited_at:new Date().toISOString()};
 }
 function mgmtOwesToDb(x){
-  return{id:x.id,what:x.what,type:x.type||null,due:x.due||null,gnum:x.gnum||null,
+  const base={id:x.id,what:x.what,type:x.type||null,due:x.due||null,gnum:x.gnum||null,
     contact:x.contact||null,pri:x.pri||'med',notes:x.notes||null,
-    received:x.received||false,received_date:x.receivedDate||null,created:x.created||today(),
-    superseded:x.superseded||false,superseded_at:x.supersededAt||null};
+    received:x.received||false,received_date:x.receivedDate||null,created:x.created||today()};
+  // Only include superseded fields if they exist on the record (avoids schema errors if SQL not run)
+  if(x.superseded!==undefined)base.superseded=x.superseded||false;
+  if(x.supersededAt!==undefined)base.superseded_at=x.supersededAt||null;
+  return base;
 }
 
 function today(){return new Date().toISOString().split('T')[0];}
@@ -3160,7 +3164,7 @@ function addInfoRequest(){
   const req={id:Date.now(),what,how,to,date:dateVal,due,url,received:false,receivedDate:'',notes:''};
   cd.infoRequests.push(req);
   // Auto-add to mgmt owes
-  mgmtOwes.unshift({id:Date.now()+1,what:'Info request: '+what+(g?' (Grievance #'+g.num+')':''),type:'Information request (Art. 16 Sec. 3)',due:due||'',gnum:g?g.num:'',contact:to,pri:'med',notes:'Requested '+dateVal+' via '+how,received:false,receivedDate:'',created:today()});
+  mgmtOwes.unshift({id:Date.now()+Math.floor(Math.random()*1000),what:'Info request: '+what+(g?' (Grievance #'+g.num+')':''),type:'Information request (Art. 16 Sec. 3)',due:due||'',gnum:g?g.num:'',contact:to,pri:'med',notes:'Requested '+dateVal+' via '+how,received:false,receivedDate:'',created:today()});
   // Also log in event log
   cd.notes.push({id:Date.now()+2,text:'Information request filed (Art. 16 Sec. 3): '+what+' — sent to '+to+' via '+how+(url?' — document linked':''),type:'union-info-request',date:dateVal,ts:new Date().toISOString()});
   sbSaveCaseData(activeCaseId);renderCFInfoReq();renderCFActivity();
@@ -3224,10 +3228,20 @@ function renderGMetrics(){const open=grievances.filter(g=>g.closed==='No').lengt
 
 function renderGrievances(){
   const fs=document.getElementById('f-status').value,ft=document.getElementById('f-type').value,fw=document.getElementById('f-steward').value,fc=document.getElementById('f-closed').value,fq=(document.getElementById('f-search').value||'').toLowerCase();
+  const fsort=(document.getElementById('f-sort')?.value)||'date-desc';
   let list=grievances.filter(g=>{if(fs&&g.status!==fs)return false;if(ft&&g.type!==ft)return false;if(fw&&g.steward!==fw)return false;if(fc&&g.closed!==fc)return false;if(fq&&!JSON.stringify(g).toLowerCase().includes(fq))return false;return true;});
+  const parseGDate=s=>{if(!s)return 0;if(s.includes('/'))try{const[m,d,y]=s.split('/');return new Date(`${y}-${m.padStart(2,'0')}-${d.padStart(2,'0')}`).getTime();}catch(e){return 0;}if(s.includes('-'))return new Date(s).getTime();return 0;};
+  const lastActivity=g=>{const cd=caseData[g.id];if(!cd||!cd.notes||!cd.notes.length)return 0;return Math.max(...cd.notes.map(n=>new Date(n.ts).getTime()));};
+  if(fsort==='date-desc')list.sort((a,b)=>parseGDate(b.date)-parseGDate(a.date));
+  else if(fsort==='date-asc')list.sort((a,b)=>parseGDate(a.date)-parseGDate(b.date));
+  else if(fsort==='activity-desc')list.sort((a,b)=>lastActivity(b)-lastActivity(a));
+  else if(fsort==='activity-asc')list.sort((a,b)=>lastActivity(a)-lastActivity(b));
   const el=document.getElementById('grievance-list');
   if(!list.length){el.innerHTML='<p style="font-size:13px;color:#aaa;padding:10px">No matching records.</p>';return;}
-  let html='<table><thead><tr><th style="width:32px"><input type="checkbox" id="bulk-all" onchange="document.querySelectorAll(\'.bulk-cb\').forEach(cb=>{cb.checked=this.checked;toggleBulkSelect(parseInt(cb.dataset.id),cb)})"></th><th>No.</th><th>Date</th><th>Member</th><th>Steward</th><th>Status</th><th>Ball</th><th>Type</th><th>Brief</th><th>Deadline</th><th>Notes</th><th></th></tr></thead><tbody>';
+  const cols=getActiveCols();
+  let html='<table><thead><tr><th style="width:32px"><input type="checkbox" id="bulk-all" onchange="document.querySelectorAll(\'.bulk-cb\').forEach(cb=>{cb.checked=this.checked;toggleBulkSelect(parseInt(cb.dataset.id),cb)})"></th>';
+  cols.forEach(c=>html+=`<th>${c.label}</th>`);
+  html+='<th></th></tr></thead><tbody>';
   list.forEach(g=>{
     let dlHtml='—',dlCls='';
     if(g.deadline){const df=diffDays(g.deadline);dlHtml=g.deadline;if(df<0){dlCls='overdue';dlHtml+=' <small>(overdue)</small>';}else if(df===0){dlCls='overdue';dlHtml='Today';}else if(df!==null&&df<=7)dlCls='overdue';}
@@ -3239,24 +3253,107 @@ function renderGrievances(){
     const ball=calcBallInCourt(cd?(cd.notes||[]):[]);
     const ballHtml=ball.owner==='—'?'<span style="color:#ddd;font-size:11px">—</span>':
       `<span style="display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:600;color:${ball.color}"><span style="width:7px;height:7px;border-radius:50%;background:${ball.color};flex-shrink:0"></span>${ball.owner}</span>`;
-    html+=`<tr>
-      <td><input type="checkbox" class="bulk-cb" data-id="${g.id}" ${isSelected?'checked':''} onchange="toggleBulkSelect(${g.id},this)"></td>
-      <td style="white-space:nowrap">
-        ${imp}<a href="#" onclick="openCaseFile(${g.id});return false;" style="font-weight:700;color:var(--navy);text-decoration:none;border-bottom:1px dashed var(--navy)">${escHtml(g.num)}</a>
-      </td>
-      <td style="white-space:nowrap;color:#888;font-size:12px">${g.date||'—'}</td>
-      <td style="font-size:13px">${escHtml(member)}</td>
-      <td style="font-size:12px">${escHtml(g.steward||'—')}</td>
-      <td>${statusBadge(g.status)}</td>
-      <td>${ballHtml}</td>
-      <td style="font-size:12px">${g.type||'—'}</td>
-      <td style="max-width:160px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:12px" title="${escHtml(g.brief||'')}">${g.brief||'—'}</td>
-      <td class="${dlCls}" style="font-size:12px;white-space:nowrap">${dlHtml}</td>
-      <td style="text-align:center">${notesBadge}</td>
-      <td><button class="btn btn-sm btn-danger" onclick="delG(${g.id})">✕</button></td>
-    </tr>`;
+    const CELL={
+      num:`<td style="white-space:nowrap">${imp}<a href="#" onclick="openCaseFile(${g.id});return false;" style="font-weight:700;color:var(--navy);text-decoration:none;border-bottom:1px dashed var(--navy)">${escHtml(g.num)}</a></td>`,
+      date:`<td style="white-space:nowrap;color:#888;font-size:12px">${g.date||'—'}</td>`,
+      member:`<td style="font-size:13px">${escHtml(member)}</td>`,
+      steward:`<td style="font-size:12px">${escHtml(g.steward||'—')}</td>`,
+      status:`<td>${statusBadge(g.status)}</td>`,
+      ball:`<td>${ballHtml}</td>`,
+      type:`<td style="font-size:12px">${g.type||'—'}</td>`,
+      brief:`<td style="max-width:160px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:12px" title="${escHtml(g.brief||'')}">${g.brief||'—'}</td>`,
+      deadline:`<td class="${dlCls}" style="font-size:12px;white-space:nowrap">${dlHtml}</td>`,
+      notes:`<td style="text-align:center">${notesBadge}</td>`,
+      articles:`<td style="font-size:11px;color:var(--text3)">${escHtml(g.articles||'—')}</td>`,
+      stewardDir:`<td style="font-size:11px;color:var(--text3)">${escHtml(g.serviceLineDirector||'—')}</td>`,
+      appMgr:`<td style="font-size:11px;color:var(--text3)">${escHtml(g.appManager||'—')}</td>`,
+    };
+    html+=`<tr><td><input type="checkbox" class="bulk-cb" data-id="${g.id}" ${isSelected?'checked':''} onchange="toggleBulkSelect(${g.id},this)"></td>`;
+    cols.forEach(c=>html+=CELL[c.key]||'<td>—</td>');
+    html+=`<td><button class="btn btn-sm btn-danger" onclick="delG(${g.id})">✕</button></td></tr>`;
   });
   html+='</tbody></table>';el.innerHTML=html;
+}
+
+// ── COLUMN CONFIG ─────────────────────────────────────────────────────
+const ALL_COLS=[
+  {key:'num',label:'No.',default:true},
+  {key:'date',label:'Date',default:true},
+  {key:'member',label:'Member',default:true},
+  {key:'steward',label:'Steward',default:true},
+  {key:'status',label:'Status',default:true},
+  {key:'ball',label:'Ball',default:true},
+  {key:'type',label:'Type',default:true},
+  {key:'brief',label:'Brief',default:true},
+  {key:'deadline',label:'Deadline',default:true},
+  {key:'notes',label:'Notes',default:true},
+  {key:'articles',label:'Articles',default:false},
+  {key:'appMgr',label:'APP Manager',default:false},
+  {key:'stewardDir',label:'Service Line Dir',default:false},
+];
+
+function getColConfig(){
+  try{const saved=JSON.parse(localStorage.getItem('upamm-col-config')||'null');if(saved&&Array.isArray(saved))return saved;}catch(e){}
+  return ALL_COLS.filter(c=>c.default).map(c=>c.key);
+}
+
+function getActiveCols(){
+  const cfg=getColConfig();
+  return cfg.map(key=>ALL_COLS.find(c=>c.key===key)).filter(Boolean);
+}
+
+function showColSettings(){
+  const existing=document.getElementById('col-settings-popup');if(existing){existing.remove();return;}
+  const cfg=getColConfig();
+  const popup=document.createElement('div');
+  popup.id='col-settings-popup';
+  popup.style.cssText='position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#fff;border:1px solid var(--border);border-radius:var(--radius-lg);padding:24px;max-width:420px;width:90%;z-index:2000;box-shadow:0 8px 40px rgba(0,0,0,0.15)';
+  popup.innerHTML=`
+    <div style="font-size:15px;font-weight:700;color:var(--navy);margin-bottom:4px">Column Settings</div>
+    <div style="font-size:12px;color:var(--text3);margin-bottom:16px">Check to show · Drag to reorder</div>
+    <div id="col-list" style="margin-bottom:16px">
+      ${ALL_COLS.map(c=>`
+        <div class="col-item" data-key="${c.key}" style="display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid var(--border);border-radius:var(--radius);margin-bottom:6px;background:#fff;cursor:grab">
+          <span style="color:#ccc;font-size:14px;cursor:grab">⠿</span>
+          <input type="checkbox" ${cfg.includes(c.key)?'checked':''} id="col-cb-${c.key}" style="accent-color:var(--navy)">
+          <label for="col-cb-${c.key}" style="font-size:13px;flex:1;cursor:pointer">${c.label}</label>
+          ${!c.default?'<span style="font-size:10px;color:#aaa">optional</span>':''}
+        </div>`).join('')}
+    </div>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-primary btn-sm" onclick="saveColSettings()">Apply</button>
+      <button class="btn btn-sm" onclick="resetColSettings()">Reset to default</button>
+      <button class="btn btn-sm" onclick="document.getElementById('col-settings-popup').remove()">Cancel</button>
+    </div>`;
+  document.body.appendChild(popup);
+  // Simple drag-to-reorder
+  let dragEl=null;
+  popup.querySelectorAll('.col-item').forEach(item=>{
+    item.addEventListener('dragstart',()=>{dragEl=item;item.style.opacity='0.4';});
+    item.addEventListener('dragend',()=>{item.style.opacity='1';dragEl=null;});
+    item.addEventListener('dragover',e=>{e.preventDefault();if(dragEl&&dragEl!==item){const list=document.getElementById('col-list');const items=[...list.querySelectorAll('.col-item')];const fromIdx=items.indexOf(dragEl);const toIdx=items.indexOf(item);if(fromIdx<toIdx)item.after(dragEl);else item.before(dragEl);}});
+    item.setAttribute('draggable','true');
+  });
+  // Click outside to close
+  setTimeout(()=>document.addEventListener('click',function h(e){if(!popup.contains(e.target)){popup.remove();document.removeEventListener('click',h);}},),100);
+}
+
+function saveColSettings(){
+  const list=document.getElementById('col-list');
+  if(!list)return;
+  const newCfg=[...list.querySelectorAll('.col-item')]
+    .filter(item=>item.querySelector('input[type=checkbox]')?.checked)
+    .map(item=>item.dataset.key);
+  if(!newCfg.length){alert('Select at least one column.');return;}
+  localStorage.setItem('upamm-col-config',JSON.stringify(newCfg));
+  document.getElementById('col-settings-popup')?.remove();
+  renderGrievances();
+}
+
+function resetColSettings(){
+  localStorage.removeItem('upamm-col-config');
+  document.getElementById('col-settings-popup')?.remove();
+  renderGrievances();
 }
 
 function addGrievance(){
