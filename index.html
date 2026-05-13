@@ -907,9 +907,8 @@ tr:hover td{background:#faf9f7}
       </div>
     </div>
 
-  </div><!-- /case-file-view -->  </div><!-- /case-file-view -->
+  </div><!-- /case-file-view -->
 </div><!-- /panel-grievances -->
-</div>
 
 <!-- MANAGEMENT OWES US -->
 <div id="panel-mgmt-owes" class="panel">
@@ -1383,13 +1382,11 @@ function stewardToDb(s,editorName){
     last_edited_at:new Date().toISOString()};
 }
 function mgmtOwesToDb(x){
-  const base={id:x.id,what:x.what,type:x.type||null,due:x.due||null,gnum:x.gnum||null,
+  // Note: superseded/superseded_at columns only included after running the ALTER TABLE SQL
+  // Omitting them here so saves work regardless of schema state
+  return{id:x.id,what:x.what,type:x.type||null,due:x.due||null,gnum:x.gnum||null,
     contact:x.contact||null,pri:x.pri||'med',notes:x.notes||null,
     received:x.received||false,received_date:x.receivedDate||null,created:x.created||today()};
-  // Only include superseded fields if they exist on the record (avoids schema errors if SQL not run)
-  if(x.superseded!==undefined)base.superseded=x.superseded||false;
-  if(x.supersededAt!==undefined)base.superseded_at=x.supersededAt||null;
-  return base;
 }
 
 function today(){return new Date().toISOString().split('T')[0];}
@@ -1607,8 +1604,13 @@ async function addDeadline(){
 
 function getAllDeadlines(){
   const all=[];
-  grievances.filter(g=>g.deadline&&g.closed==='No').forEach(g=>all.push({id:'g-'+g.id,name:'Grievance '+g.num+': '+g.brief,date:g.deadline,cat:'Grievance step',gnum:g.num,notes:g.status,done:false,source:'grievance'}));
+  // Custom deadlines first (more specific — have labels)
   deadlines.forEach(d=>all.push({...d,source:'custom'}));
+  // Grievance deadlines — only add if no custom deadline already covers same gnum+date
+  grievances.filter(g=>g.deadline&&g.closed==='No').forEach(g=>{
+    const alreadyCovered=all.some(d=>d.gnum===g.num&&d.date===g.deadline&&!d.done);
+    if(!alreadyCovered)all.push({id:'g-'+g.id,name:'Grievance '+g.num+': '+g.brief,date:g.deadline,cat:'Grievance step',gnum:g.num,notes:g.status,done:false,source:'grievance'});
+  });
   return all;
 }
 
