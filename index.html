@@ -696,66 +696,100 @@ tr:hover td{background:#faf9f7}
       <button class="cf-tab" onclick="setCFTab('prep',this)">Meeting Prep</button>
       <button class="cf-tab" onclick="setCFTab('calc',this)">⏱ Deadlines</button>
     </div>
-    <!-- STRUCTURED EVENT LOG -->
+    <!-- ACTIVITY / STATUS TAB -->
     <div id="cf-tab-activity">
-      <div class="card">
-        <div class="card-title">Log Event</div>
-        <div class="form-row">
-          <div class="form-field"><label>Event type</label>
-            <select id="cf-evt-type" onchange="updateEventForm()">
-              <optgroup label="Union actions">
-                <option value="union-filed-step1">Step 1 filed by union</option>
-                <option value="union-filed-step2">Step 2 appeal filed</option>
-                <option value="union-filed-step3">Step 3 appeal filed</option>
-                <option value="union-filed-arb">Arbitration notice filed</option>
-                <option value="union-info-request">Information request filed (Art. 16 Sec. 3)</option>
-                <option value="union-extension">Extension agreed (we granted)</option>
-                <option value="union-contact">Union contacted management</option>
-                <option value="union-withdrew">Grievance withdrawn</option>
-              </optgroup>
-              <optgroup label="Management actions">
-                <option value="mgmt-response-received">Management response received</option>
-                <option value="mgmt-mtg-scheduled">Meeting scheduled by management</option>
-                <option value="mgmt-mtg-held">Meeting held</option>
-                <option value="step1-meeting-held">Step 1 meeting held</option>
-                <option value="step2-meeting-held">Step 2 meeting held</option>
-                <option value="step3-filed">Step 3 filed (union grievance)</option>
-                <option value="mgmt-extension">Extension agreed (mgmt requested)</option>
-                <option value="mgmt-info-received">Information request fulfilled</option>
-                <option value="mgmt-denied">Grievance denied</option>
-              </optgroup>
-              <optgroup label="Status">
-                <option value="resolved">Resolved / settled</option>
-                <option value="on-hold">Placed on hold</option>
-                <option value="note">General note</option>
-                <option value="action">Action item</option>
-                <option value="member">Member contact</option>
-              </optgroup>
-            </select>
+      <!-- Case Health Banner -->
+      <div id="cf-health-banner" style="background:var(--navy);color:#fff;border-radius:var(--radius);padding:12px 16px;margin-bottom:14px;display:flex;align-items:center;gap:20px;flex-wrap:wrap"></div>
+      <!-- Split layout: timeline left, log form right -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start">
+        <!-- LEFT: Article 16 Timeline -->
+        <div>
+          <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px">Article 16 timeline</div>
+          <div style="display:flex;gap:12px;margin-bottom:12px;flex-wrap:wrap">
+            <span style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text3)"><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#534ab7;flex-shrink:0"></span>Union deadline</span>
+            <span style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text3)"><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#0f6e56;flex-shrink:0"></span>Mgmt deadline</span>
+            <span style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text3)"><span style="display:inline-block;width:10px;height:10px;border-radius:50%;border:2px dashed #aaa;flex-shrink:0"></span>Estimated</span>
           </div>
-          <div class="form-field" style="max-width:160px"><label>Date</label><input type="date" id="cf-evt-date" oninput="updateEventForm()"></div>
+          <div id="cf-timeline"></div>
         </div>
-        <div class="form-row">
-          <div class="form-field" style="flex:3"><label>Notes</label><input type="text" id="cf-evt-notes" placeholder="Details, who was present, key points..." onkeydown="if(event.key==='Enter')addCaseEvent()"></div>
-        </div>
-        <div style="margin-bottom:8px">
-          <button type="button" id="cf-attach-toggle" class="btn btn-sm" style="font-size:11px" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'flex':'none'">＋ attach doc</button>
-          <div style="display:none;gap:8px;margin-top:6px;flex-wrap:wrap;align-items:flex-end">
-            <div class="form-field"><label>Doc label</label><input type="text" id="cf-evt-doclabel" placeholder="e.g. Step 2 filing" style="font-size:12px"></div>
-            <div class="form-field" style="flex:2"><label>Drive URL</label><input type="url" id="cf-evt-url" placeholder="https://drive.google.com/..." style="font-size:12px"></div>
+        <!-- RIGHT: Log event form + activity list -->
+        <div>
+          <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px">Log event</div>
+          <div class="card" style="padding:14px">
+            <div class="form-row">
+              <div class="form-field"><label>Event type</label>
+                <select id="cf-evt-type" onchange="updateEventForm()">
+                  <optgroup label="Union — Filings">
+                    <option value="union-filed-step1">Step 1 filed</option>
+                    <option value="union-filed-step2">Step 2 filed</option>
+                    <option value="union-filed-step3">Step 3 filed</option>
+                    <option value="union-filed-arb">Arbitration notice filed</option>
+                    <option value="union-info-request">Information request filed (Art. 16 Sec. 3)</option>
+                    <option value="union-extension">Extension agreed (we granted)</option>
+                    <option value="union-contact">Union contacted management</option>
+                    <option value="union-withdrew">Grievance withdrawn</option>
+                  </optgroup>
+                  <optgroup label="Meetings — Scheduled">
+                    <option value="step1-mtg-scheduled">Step 1 meeting scheduled</option>
+                    <option value="step2-mtg-scheduled">Step 2 meeting scheduled</option>
+                    <option value="step3-mtg-scheduled">Step 3 meeting scheduled</option>
+                    <option value="prearb-mtg-scheduled">Pre-arbitration (Step 3.5) meeting scheduled</option>
+                    <option value="arb-hearing-scheduled">Arbitration hearing scheduled</option>
+                  </optgroup>
+                  <optgroup label="Meetings — Held">
+                    <option value="step1-meeting-held">Step 1 meeting held</option>
+                    <option value="step2-meeting-held">Step 2 meeting held</option>
+                    <option value="step3-meeting-held">Step 3 meeting held</option>
+                    <option value="prearb-meeting-held">Pre-arbitration (Step 3.5) meeting held</option>
+                    <option value="arb-hearing-held">Arbitration hearing held</option>
+                  </optgroup>
+                  <optgroup label="Management — Responses">
+                    <option value="mgmt-response-step1">Step 1 response received from mgmt</option>
+                    <option value="mgmt-response-step2">Step 2 response received from mgmt</option>
+                    <option value="mgmt-response-step3">Step 3 response received from mgmt</option>
+                    <option value="mgmt-response-overdue">Mgmt response overdue / not received</option>
+                    <option value="mgmt-extension">Extension agreed (mgmt requested)</option>
+                    <option value="mgmt-info-received">Information request fulfilled</option>
+                    <option value="mgmt-denied">Grievance denied</option>
+                  </optgroup>
+                  <optgroup label="Status">
+                    <option value="resolved">Resolved / settled</option>
+                    <option value="on-hold">Placed on hold</option>
+                    <option value="note">General note</option>
+                    <option value="action">Action item</option>
+                    <option value="member">Member contact</option>
+                  </optgroup>
+                </select>
+              </div>
+              <div class="form-field" style="max-width:150px"><label>Event date</label><input type="date" id="cf-evt-date" oninput="updateEventForm()"></div>
+            </div>
+            <!-- Meeting scheduled: second date field for planned meeting date -->
+            <div id="cf-mtg-sched-row" style="display:none" class="form-row">
+              <div class="form-field"><label>Meeting planned for</label><input type="date" id="cf-mtg-planned-date" placeholder="Date of the actual meeting"></div>
+            </div>
+            <div class="form-row">
+              <div class="form-field" style="flex:3"><label>Notes</label><input type="text" id="cf-evt-notes" placeholder="Details, attendees, key points..." onkeydown="if(event.key==='Enter')addCaseEvent()"></div>
+            </div>
+            <div style="margin-bottom:8px">
+              <button type="button" class="btn btn-sm" style="font-size:11px" onclick="(function(b){var p=b.nextElementSibling;p.style.display=p.style.display==='none'?'flex':'none';})(this)">＋ attach Drive link</button>
+              <div style="display:none;gap:8px;margin-top:6px;flex-wrap:wrap;align-items:flex-end">
+                <div class="form-field"><label>Doc label</label><input type="text" id="cf-evt-doclabel" placeholder="e.g. Step 2 filing" style="font-size:12px"></div>
+                <div class="form-field" style="flex:2"><label>Drive URL</label><input type="url" id="cf-evt-url" placeholder="https://drive.google.com/..." style="font-size:12px"></div>
+              </div>
+            </div>
+            <div id="cf-ext-row" style="display:none" class="form-row">
+              <div class="form-field" style="flex:2"><label>Extension reason</label><input type="text" id="cf-ext-reason" placeholder="Mutual written agreement — reason..."></div>
+              <div class="form-field" style="max-width:150px"><label>New deadline</label><input type="date" id="cf-ext-newdate"></div>
+            </div>
+            <div id="cf-evt-preview" style="display:none;background:#e1f5ee;border:1px solid #0f6e56;border-radius:var(--radius);padding:10px 12px;font-size:12px;color:#085041;margin-bottom:10px"></div>
+            <button class="btn btn-primary btn-sm" onclick="addCaseEvent()">Log Event</button>
           </div>
+          <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin:14px 0 8px">Event history</div>
+          <div id="cf-activity-list"></div>
         </div>
-        <!-- Extension reason — shown conditionally -->
-        <div id="cf-ext-row" style="display:none" class="form-row">
-          <div class="form-field" style="flex:2"><label>Extension reason / agreement details</label><input type="text" id="cf-ext-reason" placeholder="e.g. Mutual written agreement — parties need additional time for information exchange"></div>
-          <div class="form-field" style="max-width:160px"><label>New deadline</label><input type="date" id="cf-ext-newdate"></div>
-        </div>
-        <div id="cf-evt-preview" style="display:none;background:#e1f5ee;border:1px solid #0f6e56;border-radius:var(--radius);padding:10px 12px;font-size:12px;color:#085041;margin-bottom:10px"></div>
-        <button class="btn btn-primary btn-sm" onclick="addCaseEvent()">Log Event</button>
       </div>
-      <div id="cf-activity-list"></div>
     </div>
-    <!-- INFORMATION REQUESTS TAB -->
+        <!-- INFORMATION REQUESTS TAB -->
     <div id="cf-tab-inforeq" style="display:none">
       <div class="card">
         <div class="card-title">New Information Request (Art. 16 Sec. 3)</div>
@@ -823,60 +857,8 @@ tr:hover td{background:#faf9f7}
         <div id="prep-checklist-body"></div>
       </div>
     </div>
-    <!-- Deadline calculator tab -->
-    <div id="cf-tab-calc" style="display:none">
-      <div class="card">
-        <div class="card-title">Article 16 Deadline Calculator</div>
-        <p style="font-size:12px;color:var(--text3);margin-bottom:14px">Select a trigger event, enter the date, and all applicable deadlines calculate automatically.</p>
-        <div class="form-row">
-          <div class="form-field"><label>Event / starting date</label><input type="date" id="calc-date" oninput="calcDeadlines()"></div>
-          <div class="form-field" style="flex:2"><label>Starting from</label>
-            <select id="calc-step" onchange="calcDeadlines()">
-              <optgroup label="Step 1">
-                <option value="step1-submitted">Step 1 submitted by union</option>
-                <option value="step1-response-received">Step 1 response received from mgmt</option>
-                <option value="step1-response-due">Step 1 response due but not received</option>
-              </optgroup>
-              <optgroup label="Step 2">
-                <option value="step2-submitted">Step 2 appeal submitted by union</option>
-                <option value="step2-meeting-held">Step 2 review meeting held</option>
-                <option value="step2-response-received">Step 2 response received from mgmt</option>
-                <option value="step2-response-due">Step 2 response due but not received</option>
-              </optgroup>
-              <optgroup label="Step 3">
-                <option value="step3-submitted">Step 3 appeal submitted by union</option>
-                <option value="step3-meeting-held">Step 3 meeting held</option>
-                <option value="step3-response-received">Step 3 response received from mgmt</option>
-                <option value="step3-response-due">Step 3 response due but not received</option>
-              </optgroup>
-              <optgroup label="Info Request">
-                <option value="info-request-submitted">Information request submitted (Art. 16 Sec. 3)</option>
-              </optgroup>
-              <optgroup label="Arbitration">
-                <option value="arb-notice-filed">Arbitration notice filed</option>
-                <option value="arb-hearing-held">Arbitration hearing held</option>
-              </optgroup>
-              <optgroup label="Other">
-                <option value="other">Other / Misc (custom label)</option>
-              </optgroup>
-            </select>
-          </div>
-        </div>
-        <div id="calc-other-row" style="display:none" class="form-row">
-          <div class="form-field" style="flex:2"><label>Custom deadline label</label><input type="text" id="calc-other-label" placeholder="e.g. MOU response window, extension agreed deadline..." oninput="calcDeadlines()"></div>
-          <div class="form-field"><label>Deadline type</label>
-            <select id="calc-other-mode" onchange="calcDeadlines()">
-              <option value="days">Calculate forward (enter # of days)</option>
-              <option value="date">Enter deadline date directly</option>
-            </select>
-          </div>
-          <div class="form-field" id="calc-other-days-wrap"><label>Days forward</label><input type="number" id="calc-other-days" min="1" max="365" value="14" oninput="calcDeadlines()"></div>
-          <div class="form-field" id="calc-other-date-wrap" style="display:none"><label>Deadline date</label><input type="date" id="calc-other-date" oninput="calcDeadlines()"></div>
-        </div>
-        <div id="calc-results" style="margin-top:12px"></div>
-      </div>
-    </div>
-  </div><!-- /case-file-view -->
+
+  </div><!-- /case-file-view -->  </div><!-- /case-file-view -->
 </div><!-- /panel-grievances -->
 </div>
 
@@ -1569,7 +1551,7 @@ function renderDeadlines(){
       <div class="dl-days ${d.done?'dl-green':daysClass}">${d.done?'Done':daysHtml}</div>
       <div class="dl-body">
         <div class="dl-name">${escHtml(d.name)}</div>
-        <div class="dl-sub">${d.cat}${d.gnum?' · #'+d.gnum:''}${d.notes?' · '+d.notes:''}</div>
+        <div class="dl-sub">${d.cat}${d.gnum?` · <a href="#" onclick="openGrievanceFromDeadline('${escHtml(d.gnum)}');return false;" style="color:var(--navy);font-weight:600">#${escHtml(d.gnum)}</a>`:''}${d.notes?' · '+d.notes:''}</div>
       </div>
       <div class="dl-date">${fmtDisplay(d.date)}</div>
       <div style="display:flex;gap:4px;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end">
@@ -1616,6 +1598,14 @@ function editDeadlineDate(id,source,currentDate){
 }
 
 function delDeadline(id){sbDeleteDeadline(id);renderDlMetrics();renderDeadlines();}
+
+function openGrievanceFromDeadline(gnum){
+  const g=grievances.find(x=>x.num===gnum);
+  if(!g){alert('Grievance #'+gnum+' not found.');return;}
+  const nav=document.querySelector('[onclick*="\'grievances\'"]');
+  if(nav)showPanel('grievances',nav);
+  setTimeout(()=>openCaseFile(g.id),200);
+}
 
 // ── TASKS ──────────────────────────────────────────────────────────────
 function addTask(){
@@ -2245,67 +2235,221 @@ function getCaseData(gId){
 
 // ── STRUCTURED EVENT LOG ──────────────────────────────────────────────
 const EVT_LABELS={
-  'union-filed-step1':'Step 1 filed','union-filed-step2':'Step 2 appeal filed',
-  'union-filed-step3':'Step 3 appeal filed','union-filed-arb':'Arbitration notice filed',
+  'union-filed-step1':'Step 1 filed','union-filed-step2':'Step 2 filed',
+  'union-filed-step3':'Step 3 filed','union-filed-arb':'Arbitration notice filed',
   'union-info-request':'Info request filed','union-extension':'Extension agreed (union)',
   'union-contact':'Union contacted mgmt','union-withdrew':'Grievance withdrawn',
-  'mgmt-response-received':'Mgmt response received','mgmt-mtg-scheduled':'Meeting scheduled by mgmt',
-  'mgmt-mtg-held':'Meeting held','mgmt-extension':'Extension agreed (mgmt request)',
-  'mgmt-info-received':'Info request fulfilled','mgmt-denied':'Grievance denied',
+  'step1-mtg-scheduled':'Step 1 meeting scheduled','step2-mtg-scheduled':'Step 2 meeting scheduled',
+  'step3-mtg-scheduled':'Step 3 meeting scheduled','prearb-mtg-scheduled':'Pre-arb (Step 3.5) meeting scheduled',
+  'arb-hearing-scheduled':'Arbitration hearing scheduled',
+  'step1-meeting-held':'Step 1 meeting held','step2-meeting-held':'Step 2 meeting held',
+  'step3-meeting-held':'Step 3 meeting held','prearb-meeting-held':'Pre-arb (Step 3.5) meeting held',
+  'arb-hearing-held':'Arbitration hearing held',
+  'mgmt-response-step1':'Step 1 response received','mgmt-response-step2':'Step 2 response received',
+  'mgmt-response-step3':'Step 3 response received','mgmt-response-overdue':'Mgmt response overdue',
+  'mgmt-mtg-scheduled':'Meeting scheduled by mgmt','mgmt-mtg-held':'Meeting held',
+  'mgmt-extension':'Extension agreed (mgmt)','mgmt-info-received':'Info request fulfilled',
+  'mgmt-denied':'Grievance denied','mgmt-response-received':'Mgmt response received',
   'resolved':'Resolved / settled','on-hold':'Placed on hold',
   'note':'Note','action':'Action item','member':'Member contact','auto':'System',
-  'step1-meeting-held':'Step 1 meeting held','step2-meeting-held':'Step 2 meeting held',
-  'step3-filed':'Step 3 filed (union grievance)'
+  'step3-filed':'Step 3 filed'
+};
+// owner: 'union'=purple, 'mgmt'=teal
+const EVT_OWNER={
+  'union-filed-step1':'union','union-filed-step2':'union','union-filed-step3':'union',
+  'union-filed-arb':'union','union-info-request':'union','union-extension':'union',
+  'union-contact':'union','union-withdrew':'union',
+  'step1-mtg-scheduled':'mgmt','step2-mtg-scheduled':'mgmt','step3-mtg-scheduled':'mgmt',
+  'prearb-mtg-scheduled':'mgmt','arb-hearing-scheduled':'mgmt',
+  'step1-meeting-held':'both','step2-meeting-held':'both','step3-meeting-held':'both',
+  'prearb-meeting-held':'both','arb-hearing-held':'both',
+  'mgmt-response-step1':'mgmt','mgmt-response-step2':'mgmt','mgmt-response-step3':'mgmt',
+  'mgmt-response-overdue':'mgmt','mgmt-extension':'mgmt','mgmt-info-received':'mgmt',
+  'mgmt-denied':'mgmt','mgmt-response-received':'mgmt','mgmt-mtg-scheduled':'mgmt','mgmt-mtg-held':'both',
+  'resolved':'both','on-hold':'both','note':'','action':'union','member':'union','auto':''
 };
 const EVT_COLORS={
-  'union-filed-step1':'var(--purple)','union-filed-step2':'var(--purple)',
-  'union-filed-step3':'var(--purple)','union-filed-arb':'var(--red)',
-  'union-info-request':'var(--amber)','union-extension':'var(--amber)',
+  'union-filed-step1':'#534ab7','union-filed-step2':'#534ab7','union-filed-step3':'#534ab7',
+  'union-filed-arb':'var(--red)','union-info-request':'var(--amber)','union-extension':'var(--amber)',
   'union-contact':'var(--teal)','union-withdrew':'#888',
-  'mgmt-response-received':'var(--teal)','mgmt-mtg-scheduled':'var(--teal)',
-  'mgmt-mtg-held':'var(--teal)','mgmt-extension':'var(--amber)',
-  'mgmt-info-received':'var(--teal)','mgmt-denied':'var(--red)',
-  'resolved':'#27500a','on-hold':'#888',
-  'note':'#888','action':'var(--amber)','member':'#4285f4','auto':'#ccc'
+  'step1-mtg-scheduled':'var(--teal)','step2-mtg-scheduled':'var(--teal)','step3-mtg-scheduled':'var(--teal)',
+  'prearb-mtg-scheduled':'var(--teal)','arb-hearing-scheduled':'var(--red)',
+  'step1-meeting-held':'var(--teal)','step2-meeting-held':'var(--teal)','step3-meeting-held':'var(--teal)',
+  'prearb-meeting-held':'var(--teal)','arb-hearing-held':'var(--red)',
+  'mgmt-response-step1':'var(--teal)','mgmt-response-step2':'var(--teal)','mgmt-response-step3':'var(--teal)',
+  'mgmt-response-overdue':'var(--red)','mgmt-response-received':'var(--teal)',
+  'mgmt-mtg-scheduled':'var(--teal)','mgmt-mtg-held':'var(--teal)',
+  'mgmt-extension':'var(--amber)','mgmt-info-received':'var(--teal)','mgmt-denied':'var(--red)',
+  'resolved':'#27500a','on-hold':'#888','note':'#888','action':'var(--amber)',
+  'member':'#4285f4','auto':'#ccc','step3-filed':'#534ab7'
+};
+const EVT_AUTO_DEADLINES={
+  'union-filed-step1':[{label:'Mgmt: oral reply due (Art. 16H)',days:7,owner:'mgmt',moType:'Step response due'}],
+  'union-filed-step2':[{label:'Mgmt: schedule Step 2 review meeting (Art. 16J)',days:14,owner:'mgmt',moType:'Step response due'}],
+  'union-filed-step3':[{label:'Mgmt: schedule Step 3 meeting (Art. 16)',days:14,owner:'mgmt',moType:'Step response due'}],
+  'step1-meeting-held':[{label:'Mgmt: Step 1 written response due (Art. 16H)',days:7,owner:'mgmt',moType:'Step response due'}],
+  'step2-meeting-held':[{label:'Mgmt: Step 2 written response due (Art. 16J)',days:14,owner:'mgmt',moType:'Step response due'}],
+  'step3-meeting-held':[{label:'Mgmt: Step 3 final written response due (Art. 16)',days:14,owner:'mgmt',moType:'Step response due'}],
+  'mgmt-response-step1':[{label:'Union: Step 2 appeal deadline (Art. 16I)',days:21,owner:'union',moType:null}],
+  'mgmt-response-step2':[{label:'Union: Step 3 appeal deadline (Art. 16K)',days:14,owner:'union',moType:null}],
+  'mgmt-response-step3':[{label:'Union: arbitration notice deadline (Art. 16)',days:30,owner:'union',moType:null}],
+  'mgmt-response-overdue':[],
+  'union-info-request':[{label:'Mgmt: info request response due (Art. 16 Sec. 3)',days:14,owner:'mgmt',moType:'Information request (Art. 16 Sec. 3)'}],
+  'arb-hearing-held':[{label:'Arbitrator decision expected (Art. 16W)',days:30,owner:'mgmt',moType:null}],
+  'mgmt-response-received':[],
+  'mgmt-mtg-held':[{label:'Mgmt: written response due after meeting (Art. 16J)',days:14,owner:'mgmt',moType:'Step response due'}],
+  'mgmt-denied':[],'resolved':[],'on-hold':[],'note':[],'action':[],'member':[],'union-withdrew':[],
+  'step1-mtg-scheduled':[],'step2-mtg-scheduled':[],'step3-mtg-scheduled':[],
+  'prearb-mtg-scheduled':[],'arb-hearing-scheduled':[],'prearb-meeting-held':[],'step3-filed':[]
 };
 
-// What auto-deadlines each event type triggers
-const EVT_AUTO_DEADLINES={
-  'union-filed-step1':[
-    {label:'Mgmt: oral reply due (Art. 16H)',days:7,owner:'mgmt',moType:'Step response due'},
-  ],
-  'union-filed-step2':[
-    {label:'Mgmt: schedule review meeting (Art. 16J)',days:14,owner:'mgmt',moType:'Step response due'},
-  ],
-  'union-filed-step3':[
-    {label:'Mgmt: written Step 3 response due (Art. 16)',days:14,owner:'mgmt',moType:'Step response due'},
-  ],
-  'step1-meeting-held':[
-    {label:'Mgmt: written Step 1 response due after meeting (Art. 16H)',days:7,owner:'mgmt',moType:'Step response due'},
-  ],
-  'step2-meeting-held':[
-    {label:'Mgmt: written Step 2 response due after meeting (Art. 16J)',days:14,owner:'mgmt',moType:'Step response due'},
-  ],
-  'step3-filed':[
-    {label:'Mgmt: written Step 3 response due (Art. 16)',days:14,owner:'mgmt',moType:'Step response due'},
-  ],
-  'mgmt-response-received':[],// handled in addCaseEvent based on context
-  'mgmt-mtg-held':[
-    {label:'Mgmt: written response due after meeting (Art. 16J)',days:14,owner:'mgmt',moType:'Step response due'},
-  ],
-  'union-info-request':[
-    {label:'Mgmt: information request response due (Art. 16 Sec. 3)',days:14,owner:'mgmt',moType:'Information request (Art. 16 Sec. 3)'},
-  ],
-  'mgmt-denied':[],
-  'mgmt-response-received-step3':[
-    {label:'Union: arbitration notice deadline (Art. 16)',days:30,owner:'union',moType:null},
-  ]
-};
+// ── BALL IN COURT CALCULATOR ──────────────────────────────────────────
+function calcBallInCourt(notes){
+  if(!notes||!notes.length)return{owner:'—',label:'Not started',color:'#888'};
+  const sorted=[...notes].sort((a,b)=>new Date(b.ts)-new Date(a.ts));
+  const last=sorted[0];
+  const o=EVT_OWNER[last.type]||'';
+  if(o==='union')return{owner:'Union',label:'Union must act',color:'#534ab7'};
+  if(o==='mgmt')return{owner:'Mgmt',label:'Mgmt must act',color:'#0f6e56'};
+  if(o==='both')return{owner:'Both',label:'Awaiting outcome',color:'#ba7517'};
+  return{owner:'—',label:'Monitoring',color:'#888'};
+}
+
+// ── NEXT DEADLINE CALCULATOR ──────────────────────────────────────────
+function calcNextDeadline(gId){
+  // Returns {label, date, owner} based on last logged event
+  const cd=getCaseData(gId);
+  if(!cd.notes||!cd.notes.length)return null;
+  const realNotes=cd.notes.filter(n=>n.type!=='auto').sort((a,b)=>new Date(b.ts)-new Date(a.ts));
+  if(!realNotes.length)return null;
+  const last=realNotes[0];
+  const base=last.date?parseDate(last.date):new Date(last.ts);
+  if(!base)return null;
+  const addD=(d,n)=>{const r=new Date(d);r.setDate(r.getDate()+n);return r;};
+  const autoD=EVT_AUTO_DEADLINES[last.type];
+  if(autoD&&autoD.length){
+    const d=autoD[0];
+    return{label:d.label,date:isoDate(addD(base,d.days)),owner:d.owner};
+  }
+  return null;
+}
+
+// ── RENDER CASE HEALTH BANNER ─────────────────────────────────────────
+function renderCFHealthBanner(){
+  if(!activeCaseId)return;
+  const _m=document.getElementById('cf-modal-overlay');const inModal=_m&&_m.style.display!=='none';
+  const prefix=inModal?'cf-modal-tab-':'cf-tab-';
+  const el=(inModal?_m.querySelector('#cf-health-banner'):null)||document.getElementById('cf-health-banner');
+  if(!el)return;
+  const cd=getCaseData(activeCaseId);
+  const g=grievances.find(x=>x.id==activeCaseId);
+  const ball=calcBallInCourt(cd.notes||[]);
+  const nextDl=calcNextDeadline(activeCaseId);
+  // Days since last activity
+  const realNotes=(cd.notes||[]).filter(n=>n.type!=='auto');
+  let daysSince='—';
+  if(realNotes.length){
+    const last=realNotes.sort((a,b)=>new Date(b.ts)-new Date(a.ts))[0];
+    const d=Math.round((Date.now()-new Date(last.ts))/86400000);
+    daysSince=d===0?'Today':d+'d ago';
+  }
+  // Next deadline display
+  let dlHtml='<span style="color:rgba(255,255,255,0.5)">No upcoming deadline calculated</span>';
+  if(nextDl){
+    const df=diffDays(nextDl.date);
+    const urgColor=df!==null&&df<=3?'#f7c1c1':df!==null&&df<=7?'#faeeda':'#9FE1CB';
+    dlHtml=`<span style="color:${urgColor};font-weight:600">${nextDl.label}</span> <span style="color:rgba(255,255,255,0.7);font-size:11px">— ${fmtDisplay(nextDl.date)}${df!==null?' ('+( df<0?Math.abs(df)+'d overdue':df===0?'today':'in '+df+'d')+')':''}</span>`;
+  }
+  el.innerHTML=`
+    <div style="display:flex;align-items:center;gap:8px;padding:6px 10px;background:rgba(255,255,255,0.1);border-radius:var(--radius);flex-shrink:0">
+      <span style="width:8px;height:8px;border-radius:50%;background:${ball.color};flex-shrink:0"></span>
+      <span style="font-size:12px;font-weight:700">${ball.label}</span>
+    </div>
+    <div style="flex:1;min-width:200px">
+      <div style="font-size:10px;color:rgba(255,255,255,0.5);text-transform:uppercase;letter-spacing:.06em;margin-bottom:2px">Next deadline</div>
+      <div style="font-size:12px">${dlHtml}</div>
+    </div>
+    <div style="text-align:right;flex-shrink:0">
+      <div style="font-size:10px;color:rgba(255,255,255,0.5);text-transform:uppercase;letter-spacing:.06em">Last activity</div>
+      <div style="font-size:12px;color:rgba(255,255,255,0.8)">${daysSince}</div>
+    </div>`;
+}
+
+// ── RENDER CASE TIMELINE ──────────────────────────────────────────────
+function renderCFTimeline(){
+  if(!activeCaseId)return;
+  const _m=document.getElementById('cf-modal-overlay');const inModal=_m&&_m.style.display!=='none';
+  const el=(inModal?_m.querySelector('#cf-timeline'):null)||document.getElementById('cf-timeline');
+  if(!el)return;
+  const cd=getCaseData(activeCaseId);
+  const g=grievances.find(x=>x.id==activeCaseId);
+  const notes=(cd.notes||[]).filter(n=>n.type!=='auto').sort((a,b)=>new Date(a.ts)-new Date(b.ts));
+
+  // Build timeline items from logged events
+  const items=[];
+  notes.forEach(n=>{
+    const owner=EVT_OWNER[n.type]||'';
+    const color=owner==='union'?'#534ab7':owner==='mgmt'?'#0f6e56':owner==='both'?'#ba7517':'#888';
+    const label=EVT_LABELS[n.type]||n.type;
+    const displayDate=n.date||n.ts.split('T')[0];
+    let sublabel='';
+    if(n.plannedDate)sublabel='Meeting: '+fmtDisplay(n.plannedDate);
+    items.push({label,date:displayDate,color,owner,sublabel,estimated:false,notes:n.notes||n.text||''});
+    // Add estimated next deadlines from this event (only last event gets next 2 estimates)
+  });
+
+  // Add up to 2 estimated future items from the last real event
+  if(notes.length){
+    const last=notes[notes.length-1];
+    const autoD=EVT_AUTO_DEADLINES[last.type]||[];
+    const base=last.date?parseDate(last.date):new Date(last.ts);
+    autoD.slice(0,2).forEach((d,i)=>{
+      const dlDate=new Date(base);dlDate.setDate(dlDate.getDate()+d.days);
+      const color=d.owner==='union'?'#534ab7':'#0f6e56';
+      items.push({label:d.label,date:isoDate(dlDate),color,owner:d.owner,estimated:true,notes:''});
+    });
+  }
+
+  if(!items.length){
+    el.innerHTML='<div style="font-size:12px;color:var(--text3);padding:12px;text-align:center">No events logged yet.<br>Use the form to log the first event.</div>';
+    return;
+  }
+
+  // Render timeline
+  let html='<div style="position:relative;padding-left:20px">';
+  html+='<div style="position:absolute;left:6px;top:0;bottom:0;width:2px;background:var(--border)"></div>';
+  items.forEach((item,i)=>{
+    const df=item.date?diffDays(item.date):null;
+    let dateStr=item.date?fmtDisplay(item.date):'—';
+    let urgStr='';
+    if(!item.estimated&&df!==null){
+      if(df<0)urgStr=`<span style="color:var(--red);font-size:10px;font-weight:600"> ${Math.abs(df)}d overdue</span>`;
+      else if(df===0)urgStr=`<span style="color:var(--red);font-size:10px;font-weight:600"> today</span>`;
+      else if(df<=7)urgStr=`<span style="color:var(--amber);font-size:10px;font-weight:600"> in ${df}d</span>`;
+    }
+    const dotStyle=item.estimated
+      ?`border:2px dashed #aaa;background:var(--white)`
+      :`background:${item.color}`;
+    const textStyle=item.estimated?'color:var(--text3);font-style:italic':'color:var(--text)';
+    html+=`<div style="position:relative;margin-bottom:14px;${item.estimated?'opacity:0.7':''}">
+      <div style="position:absolute;left:-17px;top:3px;width:12px;height:12px;border-radius:50%;${dotStyle}"></div>
+      <div style="font-size:12px;font-weight:${item.estimated?'400':'600'};${textStyle}">${escHtml(item.label)}</div>
+      <div style="font-size:11px;color:var(--text3);margin-top:1px">${dateStr}${urgStr}${item.sublabel?' · '+escHtml(item.sublabel):''}${item.estimated?' · estimated':''}</div>
+      ${item.notes&&!item.estimated?`<div style="font-size:11px;color:var(--text2);margin-top:2px;font-style:italic">${escHtml(item.notes.substring(0,80))}${item.notes.length>80?'…':''}</div>`:''}
+    </div>`;
+  });
+  html+='</div>';
+  el.innerHTML=html;
+}
 
 function updateEventForm(){
   const type=document.getElementById('cf-evt-type').value;
   const extRow=document.getElementById('cf-ext-row');
-  extRow.style.display=(type==='union-extension'||type==='mgmt-extension')?'block':'none';
+  const mtgSchedRow=document.getElementById('cf-mtg-sched-row');
+  const isMtgSched=['step1-mtg-scheduled','step2-mtg-scheduled','step3-mtg-scheduled','prearb-mtg-scheduled','arb-hearing-scheduled'].includes(type);
+  const isExt=type==='union-extension'||type==='mgmt-extension';
+  if(extRow)extRow.style.display=isExt?'block':'none';
+  if(mtgSchedRow)mtgSchedRow.style.display=isMtgSched?'block':'none';
   // Show auto-deadline preview
   const preview=document.getElementById('cf-evt-preview');
   const dateVal=document.getElementById('cf-evt-date').value;
@@ -2314,10 +2458,11 @@ function updateEventForm(){
     const base=parseDate(dateVal);
     const items=autoD.map(d=>{
       const dl=new Date(base);dl.setDate(dl.getDate()+d.days);
-      return(d.owner==='mgmt'?'📌 Auto-adds to Mgmt Owes Us: ':'⏰ Auto-adds deadline: ')+d.label+' — '+dl.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+      const ownerLabel=d.owner==='mgmt'?'📌 Auto-adds to Mgmt Owes Us':'⏰ Auto-adds deadline';
+      return ownerLabel+': '+d.label+' — '+dl.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
     });
-    preview.style.display='block';preview.innerHTML=items.join('<br>');
-  } else {preview.style.display='none';}
+    if(preview){preview.style.display='block';preview.innerHTML=items.join('<br>');}
+  } else {if(preview)preview.style.display='none';}
 }
 
 function addCaseEvent(){
@@ -2326,6 +2471,7 @@ function addCaseEvent(){
   const type=getF('cf-evt-type')?.value;
   const dateVal=getF('cf-evt-date')?.value||today();
   const notes=getF('cf-evt-notes')?.value.trim();
+  const plannedDate=getF('cf-mtg-planned-date')?.value||'';
   const extReason=document.getElementById('cf-ext-reason')?.value.trim()||'';
   const extNewDate=document.getElementById('cf-ext-newdate')?.value||'';
   const evtUrl=getF('cf-evt-url')?.value.trim()||'';
@@ -2334,11 +2480,12 @@ function addCaseEvent(){
   const cd=getCaseData(activeCaseId);
   // Build event text
   let text=EVT_LABELS[type]||type;
+  if(plannedDate)text+=' (planned '+fmtDisplay(plannedDate)+')';
   if(notes)text+=': '+notes;
   if(extReason)text+=' | Extension reason: '+extReason;
   if(extNewDate)text+=' | New deadline: '+fmtDisplay(extNewDate);
-  // Log the event
-  cd.notes.push({id:Date.now(),text,type,date:dateVal,ts:new Date().toISOString(),url:evtUrl,docLabel:evtDocLabel});
+  // Log the event — store plannedDate for timeline rendering
+  cd.notes.push({id:Date.now(),text,type,date:dateVal,plannedDate:plannedDate||null,ts:new Date().toISOString(),url:evtUrl,docLabel:evtDocLabel});
   // Auto-create deadlines and mgmt owes entries
   const autoD=EVT_AUTO_DEADLINES[type]||[];
   const base=parseDate(dateVal)||new Date();
@@ -2347,32 +2494,44 @@ function addCaseEvent(){
     const dlStr=isoDate(dl);
     if(d.owner==='mgmt'&&d.moType){
       mgmtOwes.unshift({id:Date.now()+Math.random(),what:d.label+(g?' — Grievance #'+g.num:''),type:d.moType,due:dlStr,gnum:g?g.num:'',contact:'',pri:'high',notes:'Auto-created from event log',received:false,receivedDate:'',created:today()});
+      sbSaveMgmtOwes(mgmtOwes[0]);
     } else if(d.owner==='union'){
-      deadlines.push({id:Date.now()+Math.random(),name:d.label+(g?' — Grievance #'+g.num:''),date:dlStr,cat:'Grievance step',gnum:g?g.num:'',notes:'Auto-created from event log',done:false});
+      const newDl={id:Date.now()+Math.random(),name:d.label+(g?' — Grievance #'+g.num:''),date:dlStr,cat:'Grievance step',gnum:g?g.num:'',notes:'Auto-created from event log',done:false};
+      deadlines.push(newDl);sbSaveDeadline(newDl);
     }
   });
   // Special: Step 3 response received → 30-day arb notice
-  if(type==='mgmt-response-received'&&g&&(g.status==='Step 3-Filed'||g.status.includes('Step 3'))){
+  if((type==='mgmt-response-step3'||type==='mgmt-response-received')&&g&&(g.status==='Step 3-Filed'||g.status.includes('Step 3'))){
     const dl=new Date(base);dl.setDate(dl.getDate()+30);
-    deadlines.push({id:Date.now()+1,name:'Arbitration notice deadline — Grievance #'+g.num,date:isoDate(dl),cat:'Grievance step',gnum:g.num,notes:'Auto-created: Step 3 response received',done:false});
+    const newDl={id:Date.now()+1,name:'Arbitration notice deadline — Grievance #'+g.num,date:isoDate(dl),cat:'Grievance step',gnum:g.num,notes:'Auto-created: Step 3 response received',done:false};
+    deadlines.push(newDl);sbSaveDeadline(newDl);
   }
   // Auto-update grievance status for key events
   if(g){
-    const statusMap={'union-filed-step1':'Step 1-Filed','union-filed-step2':'Step 2-Filed','union-filed-step3':'Step 3-Filed','union-filed-arb':'Arbitration','resolved':'Resolved- in Union Favor','union-withdrew':'Closed','mgmt-denied':'Step 3-Filed'};
+    const statusMap={
+      'union-filed-step1':'Step 1-Filed','union-filed-step2':'Step 2-Filed',
+      'union-filed-step3':'Step 3-Filed','union-filed-arb':'Arbitration',
+      'resolved':'Resolved- in Union Favor','union-withdrew':'Closed','mgmt-denied':'Step 3-Filed'
+    };
     if(statusMap[type]){g.status=statusMap[type];if(type==='resolved'||type==='union-withdrew')g.closed='Yes';}
+    // Auto-update next deadline on grievance from calculated value
+    const nextDl=calcNextDeadline(activeCaseId);
+    if(nextDl){g.deadline=nextDl.date;}
   }
-  sbSaveCaseData(activeCaseId);sbSaveGrievance(grievances.find(x=>x.id==activeCaseId)||{});renderCFActivity();renderGrievances();renderGMetrics();
+  sbSaveCaseData(activeCaseId);sbSaveGrievance(grievances.find(x=>x.id==activeCaseId)||{});
+  renderCFActivity();renderGrievances();renderGMetrics();
   const _en=getF('cf-evt-notes');if(_en)_en.value='';
   const _ed=getF('cf-evt-date');if(_ed)_ed.value=today();
   const _ep=getF('cf-evt-preview');if(_ep)_ep.style.display='none';
   const _eu=getF('cf-evt-url');if(_eu)_eu.value='';
   const _edl=getF('cf-evt-doclabel');if(_edl)_edl.value='';
+  const _mp=getF('cf-mtg-planned-date');if(_mp)_mp.value='';
+  const mtgRow=getF('cf-mtg-sched-row');if(mtgRow)mtgRow.style.display='none';
   const _att=getF('cf-attach-toggle');if(_att&&_att.nextElementSibling)_att.nextElementSibling.style.display='none';
   if(document.getElementById('cf-ext-reason'))document.getElementById('cf-ext-reason').value='';
   if(document.getElementById('cf-ext-newdate'))document.getElementById('cf-ext-newdate').value='';
 }
 
-// Keep addCaseNote as alias for backward compat with any saved data
 function addCaseNote(){addCaseEvent();}
 
 function delCaseNote(noteId){
@@ -2385,8 +2544,12 @@ function delCaseNote(noteId){
 function renderCFActivity(){
   if(!activeCaseId)return;
   const cd=getCaseData(activeCaseId);
+  // Always re-render timeline + health banner too
+  renderCFTimeline();
+  renderCFHealthBanner();
   const modal=document.getElementById('cf-modal-overlay');const el=(modal&&modal.querySelector('#cf-activity-list'))||document.getElementById('cf-activity-list');
-  if(!cd.notes.length){el.innerHTML='<div class="card" style="color:#aaa;font-size:13px;text-align:center;padding:20px">No events logged yet — use the form above to record the first event.</div>';return;}
+  if(!el)return;
+  if(!cd.notes.length){el.innerHTML='<div class="card" style="color:#aaa;font-size:13px;text-align:center;padding:20px">No events logged yet — use the form to record the first event.</div>';return;}
   const sorted=[...cd.notes].sort((a,b)=>new Date(b.ts)-new Date(a.ts));
   el.innerHTML='<div class="card">'+sorted.map(n=>{
     const d=new Date(n.ts);
@@ -2497,7 +2660,7 @@ function renderGrievances(){
   let list=grievances.filter(g=>{if(fs&&g.status!==fs)return false;if(ft&&g.type!==ft)return false;if(fw&&g.steward!==fw)return false;if(fc&&g.closed!==fc)return false;if(fq&&!JSON.stringify(g).toLowerCase().includes(fq))return false;return true;});
   const el=document.getElementById('grievance-list');
   if(!list.length){el.innerHTML='<p style="font-size:13px;color:#aaa;padding:10px">No matching records.</p>';return;}
-  let html='<table><thead><tr><th style="width:32px"><input type="checkbox" id="bulk-all" onchange="document.querySelectorAll(\'.bulk-cb\').forEach(cb=>{cb.checked=this.checked;toggleBulkSelect(parseInt(cb.dataset.id),cb)})"></th><th>No.</th><th>Date</th><th>Member</th><th>Steward</th><th>Status</th><th>Type</th><th>Brief</th><th>Deadline</th><th>Notes</th><th></th></tr></thead><tbody>';
+  let html='<table><thead><tr><th style="width:32px"><input type="checkbox" id="bulk-all" onchange="document.querySelectorAll(\'.bulk-cb\').forEach(cb=>{cb.checked=this.checked;toggleBulkSelect(parseInt(cb.dataset.id),cb)})"></th><th>No.</th><th>Date</th><th>Member</th><th>Steward</th><th>Status</th><th>Ball</th><th>Type</th><th>Brief</th><th>Deadline</th><th>Notes</th><th></th></tr></thead><tbody>';
   list.forEach(g=>{
     let dlHtml='—',dlCls='';
     if(g.deadline){const df=diffDays(g.deadline);dlHtml=g.deadline;if(df<0){dlCls='overdue';dlHtml+=' <small>(overdue)</small>';}else if(df===0){dlCls='overdue';dlHtml='Today';}else if(df!==null&&df<=7)dlCls='overdue';}
@@ -2506,6 +2669,9 @@ function renderGrievances(){
     const cd=caseData[g.id];const noteCount=cd?cd.notes.length:0;
     const notesBadge=noteCount>0?`<span class="badge b-wlr">${noteCount}</span>`:'<span style="color:#ddd;font-size:11px">—</span>';
     const isSelected=bulkSelected.has(g.id);
+    const ball=calcBallInCourt(cd?(cd.notes||[]):[]);
+    const ballHtml=ball.owner==='—'?'<span style="color:#ddd;font-size:11px">—</span>':
+      `<span style="display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:600;color:${ball.color}"><span style="width:7px;height:7px;border-radius:50%;background:${ball.color};flex-shrink:0"></span>${ball.owner}</span>`;
     html+=`<tr>
       <td><input type="checkbox" class="bulk-cb" data-id="${g.id}" ${isSelected?'checked':''} onchange="toggleBulkSelect(${g.id},this)"></td>
       <td style="white-space:nowrap">
@@ -2515,6 +2681,7 @@ function renderGrievances(){
       <td style="font-size:13px">${escHtml(member)}</td>
       <td style="font-size:12px">${escHtml(g.steward||'—')}</td>
       <td>${statusBadge(g.status)}</td>
+      <td>${ballHtml}</td>
       <td style="font-size:12px">${g.type||'—'}</td>
       <td style="max-width:160px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:12px" title="${escHtml(g.brief||'')}">${g.brief||'—'}</td>
       <td class="${dlCls}" style="font-size:12px;white-space:nowrap">${dlHtml}</td>
@@ -2558,6 +2725,11 @@ function openCaseFile(id){
   modal.innerHTML='';
   const hdr=document.createElement('div');
   hdr.style.cssText='display:flex;align-items:center;gap:10px;margin-bottom:20px;flex-wrap:wrap;border-bottom:2px solid #e0e0e0;padding-bottom:16px';
+  // Colored heading strip based on status
+  const statusColor=g.status&&g.status.includes('Step 3')||g.status==='Arbitration'?'#a32d2d':g.status&&g.status.includes('Step 2')?'#ba7517':g.status&&g.status.includes('Step 1')?'#534ab7':g.status&&(g.status.includes('Workload')||g.status.includes('WLR'))?'#0f6e56':'#1a2744';
+  const colorStrip=document.createElement('div');
+  colorStrip.style.cssText=`width:100%;height:4px;border-radius:2px;background:${statusColor};margin-bottom:10px`;
+  hdr.appendChild(colorStrip);
   const backBtn=document.createElement('button');
   backBtn.className='btn btn-sm';
   backBtn.textContent='← Back to log';
@@ -2584,7 +2756,7 @@ function openCaseFile(id){
   // Tabs
   const tabBar=document.createElement('div');
   tabBar.style.cssText='display:flex;gap:0;border-bottom:1px solid var(--border);margin:16px 0';
-  const tabNames=[['activity','Event Log'],['inforeq','Info Requests'],['checklist','Documents'],['meetings','Linked Meetings'],['refs','References'],['prep','Meeting Prep'],['calc','⏱ Deadlines']];
+  const tabNames=[['activity','Activity / Status'],['inforeq','Info Requests'],['checklist','Documents'],['meetings','Linked Meetings'],['refs','References'],['prep','Meeting Prep']];
   tabNames.forEach(([name,label],i)=>{
     const btn=document.createElement('button');
     btn.className='cf-tab'+(i===0?' active':'');
@@ -2597,61 +2769,92 @@ function openCaseFile(id){
   // Tab content containers — built fresh to avoid duplicate IDs
   const tabHTMLBuilders={
     activity:()=>`
-      <div class="card">
-        <div class="card-title">Log Event</div>
-        <div class="form-row">
-          <div class="form-field"><label>Event type</label>
-            <select id="cf-evt-type" onchange="updateEventForm()">
-              <optgroup label="Union actions">
-                <option value="union-filed-step1">Step 1 filed by union</option>
-                <option value="union-filed-step2">Step 2 appeal filed</option>
-                <option value="union-filed-step3">Step 3 appeal filed</option>
-                <option value="union-filed-arb">Arbitration notice filed</option>
-                <option value="union-info-request">Information request filed (Art. 16 Sec. 3)</option>
-                <option value="union-extension">Extension agreed (we granted)</option>
-                <option value="union-contact">Union contacted management</option>
-                <option value="union-withdrew">Grievance withdrawn</option>
-              </optgroup>
-              <optgroup label="Management actions">
-                <option value="mgmt-response-received">Management response received</option>
-                <option value="mgmt-mtg-scheduled">Meeting scheduled by management</option>
-                <option value="mgmt-mtg-held">Meeting held</option>
-                <option value="step1-meeting-held">Step 1 meeting held</option>
-                <option value="step2-meeting-held">Step 2 meeting held</option>
-                <option value="step3-filed">Step 3 filed (union grievance)</option>
-                <option value="mgmt-extension">Extension agreed (mgmt requested)</option>
-                <option value="mgmt-info-received">Information request fulfilled</option>
-                <option value="mgmt-denied">Grievance denied</option>
-              </optgroup>
-              <optgroup label="Status">
-                <option value="resolved">Resolved / settled</option>
-                <option value="on-hold">Placed on hold</option>
-                <option value="note">General note</option>
-                <option value="action">Action item</option>
-                <option value="member">Member contact</option>
-              </optgroup>
-            </select>
+      <div id="cf-health-banner" style="background:var(--navy);color:#fff;border-radius:var(--radius);padding:12px 16px;margin-bottom:14px;display:flex;align-items:center;gap:20px;flex-wrap:wrap"></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start">
+        <div>
+          <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px">Article 16 timeline</div>
+          <div style="display:flex;gap:12px;margin-bottom:10px;flex-wrap:wrap">
+            <span style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text3)"><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#534ab7;flex-shrink:0"></span>Union deadline</span>
+            <span style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text3)"><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#0f6e56;flex-shrink:0"></span>Mgmt deadline</span>
+            <span style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text3)"><span style="display:inline-block;width:10px;height:10px;border-radius:50%;border:2px dashed #aaa;flex-shrink:0"></span>Estimated</span>
           </div>
-          <div class="form-field" style="max-width:160px"><label>Date</label><input type="date" id="cf-evt-date" oninput="updateEventForm()"></div>
+          <div id="cf-timeline"></div>
         </div>
-        <div class="form-row">
-          <div class="form-field" style="flex:3"><label>Notes</label><input type="text" id="cf-evt-notes" placeholder="Details, who was present, key points..." onkeydown="if(event.key==='Enter')addCaseEvent()"></div>
-        </div>
-        <div style="margin-bottom:8px">
-          <button type="button" id="cf-attach-toggle" class="btn btn-sm" style="font-size:11px" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display===\\'none\\'?\\'flex\\':\\'none\\'">＋ attach doc</button>
-          <div style="display:none;gap:8px;margin-top:6px;flex-wrap:wrap;align-items:flex-end">
-            <div class="form-field"><label>Doc label</label><input type="text" id="cf-evt-doclabel" placeholder="e.g. Step 2 filing" style="font-size:12px"></div>
-            <div class="form-field" style="flex:2"><label>Drive URL</label><input type="url" id="cf-evt-url" placeholder="https://drive.google.com/..." style="font-size:12px"></div>
+        <div>
+          <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px">Log event</div>
+          <div class="card" style="padding:14px">
+            <div class="form-row">
+              <div class="form-field"><label>Event type</label>
+                <select id="cf-evt-type" onchange="updateEventForm()">
+                  <optgroup label="Union — Filings">
+                    <option value="union-filed-step1">Step 1 filed</option>
+                    <option value="union-filed-step2">Step 2 filed</option>
+                    <option value="union-filed-step3">Step 3 filed</option>
+                    <option value="union-filed-arb">Arbitration notice filed</option>
+                    <option value="union-info-request">Information request filed (Art. 16 Sec. 3)</option>
+                    <option value="union-extension">Extension agreed (we granted)</option>
+                    <option value="union-contact">Union contacted management</option>
+                    <option value="union-withdrew">Grievance withdrawn</option>
+                  </optgroup>
+                  <optgroup label="Meetings — Scheduled">
+                    <option value="step1-mtg-scheduled">Step 1 meeting scheduled</option>
+                    <option value="step2-mtg-scheduled">Step 2 meeting scheduled</option>
+                    <option value="step3-mtg-scheduled">Step 3 meeting scheduled</option>
+                    <option value="prearb-mtg-scheduled">Pre-arbitration (Step 3.5) meeting scheduled</option>
+                    <option value="arb-hearing-scheduled">Arbitration hearing scheduled</option>
+                  </optgroup>
+                  <optgroup label="Meetings — Held">
+                    <option value="step1-meeting-held">Step 1 meeting held</option>
+                    <option value="step2-meeting-held">Step 2 meeting held</option>
+                    <option value="step3-meeting-held">Step 3 meeting held</option>
+                    <option value="prearb-meeting-held">Pre-arbitration (Step 3.5) meeting held</option>
+                    <option value="arb-hearing-held">Arbitration hearing held</option>
+                  </optgroup>
+                  <optgroup label="Management — Responses">
+                    <option value="mgmt-response-step1">Step 1 response received from mgmt</option>
+                    <option value="mgmt-response-step2">Step 2 response received from mgmt</option>
+                    <option value="mgmt-response-step3">Step 3 response received from mgmt</option>
+                    <option value="mgmt-response-overdue">Mgmt response overdue / not received</option>
+                    <option value="mgmt-extension">Extension agreed (mgmt requested)</option>
+                    <option value="mgmt-info-received">Information request fulfilled</option>
+                    <option value="mgmt-denied">Grievance denied</option>
+                  </optgroup>
+                  <optgroup label="Status">
+                    <option value="resolved">Resolved / settled</option>
+                    <option value="on-hold">Placed on hold</option>
+                    <option value="note">General note</option>
+                    <option value="action">Action item</option>
+                    <option value="member">Member contact</option>
+                  </optgroup>
+                </select>
+              </div>
+              <div class="form-field" style="max-width:150px"><label>Event date</label><input type="date" id="cf-evt-date" oninput="updateEventForm()"></div>
+            </div>
+            <div id="cf-mtg-sched-row" style="display:none" class="form-row">
+              <div class="form-field"><label>Meeting planned for</label><input type="date" id="cf-mtg-planned-date"></div>
+            </div>
+            <div class="form-row">
+              <div class="form-field" style="flex:3"><label>Notes</label><input type="text" id="cf-evt-notes" placeholder="Details, attendees, key points..." onkeydown="if(event.key===\'Enter\')addCaseEvent()"></div>
+            </div>
+            <div style="margin-bottom:8px">
+              <button type="button" class="btn btn-sm" style="font-size:11px" onclick="(function(b){var p=b.nextElementSibling;p.style.display=p.style.display===\'none\'?\'flex\':\'none\';})(this)">＋ attach Drive link</button>
+              <div style="display:none;gap:8px;margin-top:6px;flex-wrap:wrap;align-items:flex-end">
+                <div class="form-field"><label>Doc label</label><input type="text" id="cf-evt-doclabel" placeholder="e.g. Step 2 filing" style="font-size:12px"></div>
+                <div class="form-field" style="flex:2"><label>Drive URL</label><input type="url" id="cf-evt-url" placeholder="https://drive.google.com/..." style="font-size:12px"></div>
+              </div>
+            </div>
+            <div id="cf-ext-row" style="display:none" class="form-row">
+              <div class="form-field" style="flex:2"><label>Extension reason</label><input type="text" id="cf-ext-reason" placeholder="Mutual written agreement — reason..."></div>
+              <div class="form-field" style="max-width:150px"><label>New deadline</label><input type="date" id="cf-ext-newdate"></div>
+            </div>
+            <div id="cf-evt-preview" style="display:none;background:#e1f5ee;border:1px solid #0f6e56;border-radius:var(--radius);padding:10px 12px;font-size:12px;color:#085041;margin-bottom:10px"></div>
+            <button class="btn btn-primary btn-sm" onclick="addCaseEvent()">Log Event</button>
           </div>
+          <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin:14px 0 8px">Event history</div>
+          <div id="cf-activity-list"></div>
         </div>
-          <div class="form-field" style="flex:2"><label>Extension reason / agreement details</label><input type="text" id="cf-ext-reason" placeholder="e.g. Mutual written agreement — parties need additional time for information exchange"></div>
-          <div class="form-field" style="max-width:160px"><label>New deadline</label><input type="date" id="cf-ext-newdate"></div>
-        </div>
-        <div id="cf-evt-preview" style="display:none;background:#e1f5ee;border:1px solid #0f6e56;border-radius:var(--radius);padding:10px 12px;font-size:12px;color:#085041;margin-bottom:10px"></div>
-        <button class="btn btn-primary btn-sm" onclick="addCaseEvent()">Log Event</button>
-      </div>
-      <div id="cf-activity-list"></div>`,
-    inforeq:()=>`
+      </div>`,
+        inforeq:()=>`
       <div class="card">
         <div class="card-title">New Information Request (Art. 16 Sec. 3)</div>
         <div class="form-row">
@@ -2729,57 +2932,7 @@ function openCaseFile(id){
         </div>
         <div id="prep-checklist-body"></div>
       </div>`,
-    calc:()=>`
-      <div class="card">
-        <div class="card-title">Article 16 Deadline Calculator</div>
-        <p style="font-size:12px;color:var(--text3);margin-bottom:14px">Select a trigger event, enter the date, and all applicable deadlines calculate automatically.</p>
-        <div class="form-row">
-          <div class="form-field"><label>Event / starting date</label><input type="date" id="calc-date" oninput="calcDeadlines()"></div>
-          <div class="form-field" style="flex:2"><label>Starting from</label>
-            <select id="calc-step" onchange="calcDeadlines()">
-              <optgroup label="Step 1">
-                <option value="step1-submitted">Step 1 submitted by union</option>
-                <option value="step1-response-received">Step 1 response received from mgmt</option>
-                <option value="step1-response-due">Step 1 response due but not received</option>
-              </optgroup>
-              <optgroup label="Step 2">
-                <option value="step2-submitted">Step 2 appeal submitted by union</option>
-                <option value="step2-meeting-held">Step 2 review meeting held</option>
-                <option value="step2-response-received">Step 2 response received from mgmt</option>
-                <option value="step2-response-due">Step 2 response due but not received</option>
-              </optgroup>
-              <optgroup label="Step 3">
-                <option value="step3-submitted">Step 3 appeal submitted by union</option>
-                <option value="step3-meeting-held">Step 3 meeting held</option>
-                <option value="step3-response-received">Step 3 response received from mgmt</option>
-                <option value="step3-response-due">Step 3 response due but not received</option>
-              </optgroup>
-              <optgroup label="Info Request">
-                <option value="info-request-submitted">Information request submitted (Art. 16 Sec. 3)</option>
-              </optgroup>
-              <optgroup label="Arbitration">
-                <option value="arb-notice-filed">Arbitration notice filed</option>
-                <option value="arb-hearing-held">Arbitration hearing held</option>
-              </optgroup>
-              <optgroup label="Other">
-                <option value="other">Other / Misc (custom label)</option>
-              </optgroup>
-            </select>
-          </div>
-        </div>
-        <div id="calc-other-row" style="display:none" class="form-row">
-          <div class="form-field" style="flex:2"><label>Custom deadline label</label><input type="text" id="calc-other-label" placeholder="e.g. MOU response window, extension agreed deadline..." oninput="calcDeadlines()"></div>
-          <div class="form-field"><label>Deadline type</label>
-            <select id="calc-other-mode" onchange="calcDeadlines()">
-              <option value="days">Calculate forward (enter # of days)</option>
-              <option value="date">Enter deadline date directly</option>
-            </select>
-          </div>
-          <div class="form-field" id="calc-other-days-wrap"><label>Days forward</label><input type="number" id="calc-other-days" min="1" max="365" value="14" oninput="calcDeadlines()"></div>
-          <div class="form-field" id="calc-other-date-wrap" style="display:none"><label>Deadline date</label><input type="date" id="calc-other-date" oninput="calcDeadlines()"></div>
-        </div>
-        <div id="calc-results" style="margin-top:12px"></div>
-      </div>`
+
   };
   tabNames.forEach(([name],i)=>{
     const div=document.createElement('div');
@@ -2796,6 +2949,8 @@ function openCaseFile(id){
   try{renderCFDetails();}catch(e){detailCard.textContent='Error: '+e.message;}
   try{renderCFActivity();}catch(e){console.error(e);}
   try{renderCFChecklist();}catch(e){console.error(e);}
+  try{renderCFTimeline();}catch(e){console.error(e);}
+  try{renderCFHealthBanner();}catch(e){console.error(e);}
 
   const evtDate=document.getElementById('cf-evt-date');
   if(evtDate)evtDate.value=today();
@@ -2859,7 +3014,7 @@ function renderCFDetails(){
     ['Closed', closedHTML, true],
     ['Type', g.type],
     ['Articles', g.articles],
-    ['Next Deadline', g.deadline?fmtDisplay(g.deadline):'—'],
+    ['Next Deadline', (()=>{const nd=calcNextDeadline(activeCaseId);if(nd){const df=diffDays(nd.date);const cls=df!==null&&df<0?'color:var(--red);font-weight:600':df!==null&&df<=7?'color:var(--amber);font-weight:600':'color:var(--text)';return`<span style="${cls}">${fmtDisplay(nd.date)}</span> <span style="font-size:11px;color:var(--text3)">${nd.label}</span>`;}return g.deadline?`<span>${fmtDisplay(g.deadline)}</span>`:'—';})(), true],
     ['APP Manager', g.appManager],
     ['Service Line Director', g.serviceLineDirector],
     ['Disposition', g.disposition],
@@ -2974,7 +3129,7 @@ function closeCaseFile(){
   document.getElementById('case-file-view').style.display='none';
   // Reset tabs
   document.querySelectorAll('.cf-tab').forEach((t,i)=>t.classList.toggle('active',i===0));
-  ['activity','inforeq','checklist','meetings','refs','prep','calc'].forEach((t,i)=>{
+  ['activity','inforeq','checklist','meetings','refs','prep'].forEach((t,i)=>{
     const el=document.getElementById('cf-tab-'+t);if(el)el.style.display=i===0?'block':'none';
   });
 }
@@ -2986,7 +3141,7 @@ function setCFTab(name,btn){
   const modal=document.getElementById('cf-modal-overlay');
   const inModal=modal&&modal.style.display!=='none';
   const prefix=inModal?'cf-modal-tab-':'cf-tab-';
-  ['activity','inforeq','checklist','meetings','refs','prep','calc'].forEach(t=>{
+  ['activity','inforeq','checklist','meetings','refs','prep'].forEach(t=>{
     const el=document.getElementById(prefix+t);
     if(el)el.style.display=t===name?'block':'none';
   });
