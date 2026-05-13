@@ -754,6 +754,7 @@ tr:hover td{background:#faf9f7}
                     <option value="arb-hearing-held">Arbitration hearing held</option>
                   </optgroup>
                   <optgroup label="Management — Responses">
+                    <option value="mgmt-ack-receipt">Mgmt acknowledged receipt of filing</option>
                     <option value="mgmt-response-step1">Step 1 response received from mgmt</option>
                     <option value="mgmt-response-step2">Step 2 response received from mgmt</option>
                     <option value="mgmt-response-step3">Step 3 response received from mgmt</option>
@@ -2339,12 +2340,12 @@ function confirmTaskFromMeeting(mtgId){
 // ── GRIEVANCES & CASE FILES ──────────────────────────────────────────
 
 const DEFAULT_DOCS = [
-  'Step 1 grievance filing','Step 1 management response',
-  'Step 2 appeal letter','Step 2 management response',
-  'Step 3 appeal letter','Step 3 management response',
-  'Arbitration notice','Member statement / written account',
-  'Scheduling / panel data','Management communications (emails, memos)',
-  'Prior resolutions or MOUs','CBA articles cited'
+  'Step 1 filed','Management response — Step 1',
+  'Step 2 grievance filed','Management response — Step 2',
+  'Step 3 grievance filed','Management response — Step 3',
+  'Notice of intent to arbitrate','Member statement / written account',
+  'Scheduling / panel data','Emails / written communications',
+  'Prior MOU or settlement','CBA articles cited'
 ];
 
 function getCaseData(gId){
@@ -2374,6 +2375,7 @@ const EVT_LABELS={
   'resolved':'Resolved / settled','on-hold':'Placed on hold',
   'note':'Note','action':'Action item','member':'Member contact','auto':'System',
   'step3-filed':'Step 3 filed',
+  'mgmt-ack-receipt':'Mgmt acknowledged receipt of filing',
   // New communication / informal event types
   'member-followup':'Member follow-up','member-meeting':'Member meeting held',
   'touchbase-discussed':'Discussed at mgmt touchbase','officer-discussed':'Discussed at officer meeting',
@@ -2399,6 +2401,7 @@ const EVT_OWNER={
   'mgmt-denied':'union','mgmt-response-received':'union',
   'mgmt-mtg-scheduled':'mgmt','mgmt-mtg-held':'both',
   'resolved':'both','on-hold':'both','note':'','action':'union','member':'union','auto':'',
+  'mgmt-ack-receipt':'both',// acknowledged — no ball movement
   // Communication / informal — ball doesn't move
   'member-followup':'','member-meeting':'','touchbase-discussed':'','officer-discussed':'','steward-update':''
 };
@@ -2416,6 +2419,7 @@ const EVT_COLORS={
   'mgmt-extension':'var(--amber)','mgmt-info-received':'var(--teal)','mgmt-denied':'var(--red)',
   'resolved':'#27500a','on-hold':'#888','note':'#888','action':'var(--amber)',
   'member':'#4285f4','auto':'#ccc','step3-filed':'#534ab7',
+  'mgmt-ack-receipt':'var(--teal)',
   'member-followup':'#4285f4','member-meeting':'#4285f4',
   'touchbase-discussed':'var(--teal)','officer-discussed':'var(--purple)','steward-update':'var(--amber)'
 };
@@ -2438,7 +2442,8 @@ const EVT_AUTO_DEADLINES={
   'mgmt-denied':[],'resolved':[],'on-hold':[],'note':[],'action':[],'member':[],'union-withdrew':[],
   'step1-mtg-scheduled':[],'step2-mtg-scheduled':[],'step3-mtg-scheduled':[],
   'prearb-mtg-scheduled':[],'arb-hearing-scheduled':[],'prearb-meeting-held':[],'step3-filed':[],
-  'member-followup':[],'member-meeting':[],'touchbase-discussed':[],'officer-discussed':[],'steward-update':[]
+  'member-followup':[],'member-meeting':[],'touchbase-discussed':[],'officer-discussed':[],'steward-update':[],
+  'mgmt-ack-receipt':[]
 };
 
 // ── BALL IN COURT CALCULATOR ──────────────────────────────────────────
@@ -2772,6 +2777,10 @@ function editCaseEvent(noteId){
       <div class="form-field" style="max-width:160px"><label>Date</label><input type="date" id="ee-date-${noteId}" value="${n.date||''}"></div>
       <div class="form-field" style="flex:3"><label>Notes</label><input type="text" id="ee-notes-${noteId}" value="${(n.text||'').replace(/^[^:]+:\s*/,'').replace(/"/g,'&quot;')}"></div>
     </div>
+    <div class="form-row" style="margin-bottom:8px">
+      <div class="form-field"><label>Doc label</label><input type="text" id="ee-doclabel-${noteId}" value="${escHtml(n.docLabel||'')}" placeholder="e.g. Step 2 filing"></div>
+      <div class="form-field" style="flex:2"><label>Drive URL</label><input type="url" id="ee-url-${noteId}" value="${escHtml(n.url||'')}" placeholder="https://drive.google.com/..."></div>
+    </div>
     <div style="display:flex;gap:8px">
       <button class="btn btn-primary btn-sm" onclick="saveCaseEventEdit(${noteId})">Save</button>
       <button class="btn btn-sm" onclick="document.getElementById('edit-evt-popup-${noteId}').remove()">Cancel</button>
@@ -2798,7 +2807,10 @@ function saveCaseEventEdit(noteId){
     const label=EVT_LABELS[n.type]||n.type;
     n.text=newNotes?label+': '+newNotes:label;
   }
-  document.getElementById('edit-evt-popup-'+noteId)?.remove();
+  const newUrl=document.getElementById('ee-url-'+noteId)?.value.trim();
+  const newDocLabel=document.getElementById('ee-doclabel-'+noteId)?.value.trim();
+  if(newUrl!==undefined)n.url=newUrl||null;
+  if(newDocLabel!==undefined)n.docLabel=newDocLabel||null;
   sbSaveCaseData(activeCaseId);renderCFActivity();renderCFTimeline();renderCFHealthBanner();
 }
 
@@ -3292,6 +3304,7 @@ function openCaseFile(id){
                     <option value="arb-hearing-held">Arbitration hearing held</option>
                   </optgroup>
                   <optgroup label="Management — Responses">
+                    <option value="mgmt-ack-receipt">Mgmt acknowledged receipt of filing</option>
                     <option value="mgmt-response-step1">Step 1 response received from mgmt</option>
                     <option value="mgmt-response-step2">Step 2 response received from mgmt</option>
                     <option value="mgmt-response-step3">Step 3 response received from mgmt</option>
@@ -3546,6 +3559,9 @@ function renderCFDetails(){
 
   const row1=document.createElement('div');row1.className='form-row';
   row1.appendChild(makeInput('cfe-num','Grievance #',g.num));
+  // Date filed — stored as MM/DD/YYYY, convert to YYYY-MM-DD for date input
+  const dateForInput=(s=>{if(!s)return'';if(s.includes('-'))return s;const p=s.split('/');return p.length===3?`${p[2]}-${p[0].padStart(2,'0')}-${p[1].padStart(2,'0')}`:''})(g.date);
+  row1.appendChild(makeInput('cfe-date','Date Filed',dateForInput,'date'));
   row1.appendChild(makeInput('cfe-last','Last Name',g.lastName));
   row1.appendChild(makeInput('cfe-first','First Name',g.firstName));
   row1.appendChild(makeInput('cfe-steward','Steward',g.steward));
@@ -3600,6 +3616,9 @@ function saveCFEdit(){
   const g=grievances.find(x=>x.id==activeCaseId);if(!g)return;
   const oldNum=g.num;
   g.num=document.getElementById('cfe-num').value.trim()||g.num;
+  // Date filed — input gives YYYY-MM-DD, store as MM/DD/YYYY to match existing format
+  const rawDate=document.getElementById('cfe-date')?.value;
+  if(rawDate){const p=rawDate.split('-');if(p.length===3)g.date=`${p[1]}/${p[2]}/${p[0]}`;}
   g.lastName=document.getElementById('cfe-last').value.trim();
   g.firstName=document.getElementById('cfe-first').value.trim();
   g.steward=document.getElementById('cfe-steward').value.trim();
@@ -3669,10 +3688,17 @@ function toggleCaseDoc(idx){
 function addCaseDoc(){
   if(!activeCaseId)return;
   const _m2=document.getElementById('cf-modal-overlay');const _mO2=_m2&&_m2.style.display!=='none';
-  const _dt=(_mO2&&_m2.querySelector('#cf-doc-text'))||document.getElementById('cf-doc-text');
-  const text=_dt?.value.trim();if(!text)return;
-  getCaseData(activeCaseId).docs.push({text,done:false,custom:true});
-  sbSaveCaseData(activeCaseId);renderCFChecklist();if(_dt)_dt.value='';
+  const getF=id=>(_mO2&&_m2.querySelector('#'+id))||document.getElementById(id);
+  const typeEl=getF('cf-doc-type');const textEl=getF('cf-doc-text');
+  const typeVal=typeEl?.value||'';
+  const textVal=textEl?.value.trim()||'';
+  // Use dropdown value unless "Other" selected, then use free text
+  const text=typeVal==='__other'||typeVal===''?textVal:typeVal;
+  if(!text)return alert('Select a document type or enter a custom name.');
+  getCaseData(activeCaseId).docs.push({text,done:false,custom:true,acknowledged:false,acknowledgedDate:''});
+  sbSaveCaseData(activeCaseId);renderCFChecklist();
+  if(typeEl)typeEl.value='';
+  if(textEl)textEl.value='';
 }
 
 function delCaseDoc(idx){
@@ -3681,29 +3707,101 @@ function delCaseDoc(idx){
   cd.docs.splice(idx,1);sbSaveCaseData(activeCaseId);renderCFChecklist();
 }
 
+function toggleAcknowledged(idx){
+  if(!activeCaseId)return;
+  const cd=getCaseData(activeCaseId);
+  if(!cd.docs[idx])return;
+  cd.docs[idx].acknowledged=!cd.docs[idx].acknowledged;
+  if(cd.docs[idx].acknowledged&&!cd.docs[idx].acknowledgedDate)cd.docs[idx].acknowledgedDate=today();
+  else if(!cd.docs[idx].acknowledged)cd.docs[idx].acknowledgedDate='';
+  sbSaveCaseData(activeCaseId);renderCFChecklist();
+}
+
+function saveAcknowledgedDate(idx){
+  if(!activeCaseId)return;
+  const _m=document.getElementById('cf-modal-overlay');const inModal=_m&&_m.style.display!=='none';
+  const inp=inModal?_m.querySelector('#doc-ackdate-'+idx):document.getElementById('doc-ackdate-'+idx);
+  if(!inp)return;
+  const cd=getCaseData(activeCaseId);
+  if(cd.docs[idx]){cd.docs[idx].acknowledgedDate=inp.value;cd.docs[idx].acknowledged=!!inp.value;}
+  sbSaveCaseData(activeCaseId);renderCFChecklist();
+}
+
+function syncDocsFromEventLog(){
+  if(!activeCaseId)return;
+  const cd=getCaseData(activeCaseId);
+  const notes=(cd.notes||[]).filter(n=>n.url);
+  let added=0;
+  notes.forEach(n=>{
+    const label=n.docLabel||(EVT_LABELS[n.type]||n.type);
+    const exists=cd.docs.find(d=>d.url===n.url);
+    if(!exists){
+      cd.docs.push({text:label,done:true,custom:true,url:n.url,fromEvent:true,acknowledged:false,acknowledgedDate:''});
+      added++;
+    }
+  });
+  if(added>0){sbSaveCaseData(activeCaseId);renderCFChecklist();alert(`Added ${added} document${added!==1?'s':''} from event log.`);}
+  else alert('All event log documents already in checklist.');
+}
+
 function renderCFChecklist(){
   if(!activeCaseId)return;
   const cd=getCaseData(activeCaseId);
   const done=cd.docs.filter(d=>d.done).length;
   const pct=cd.docs.length?Math.round(done/cd.docs.length*100):0;
-  (document.getElementById('cf-modal-overlay')?.querySelector('#cf-checklist')||document.getElementById('cf-checklist')).innerHTML=
+  const _m=document.getElementById('cf-modal-overlay');const inModal=_m&&_m.style.display!=='none';
+  const el=inModal?_m.querySelector('#cf-checklist'):document.getElementById('cf-checklist');
+  if(!el)return;
+
+  el.innerHTML=
     `<div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
       <div style="flex:1;height:6px;background:#f0ede8;border-radius:3px"><div style="height:6px;background:var(--teal);border-radius:3px;width:${pct}%;transition:width .3s"></div></div>
       <span style="font-size:12px;color:var(--text3)">${done}/${cd.docs.length} collected</span>
     </div>`+
-    cd.docs.map((d,i)=>`<div class="check-item${d.done?' checked':''}">
-      <input type="checkbox" ${d.done?'checked':''} onchange="toggleCaseDoc(${i})">
-      <span style="flex:1">${escHtml(d.text)}${d.custom?' <span style="font-size:10px;color:#aaa">(custom)</span>':''}</span>
-      ${d.url
-        ?`<a href="${escHtml(d.url)}" target="_blank" class="btn btn-sm btn-green" style="font-size:11px;padding:2px 8px">📂 Open</a>`
-        :`<button class="btn btn-sm" style="font-size:11px;padding:2px 8px" onclick="toggleDocLink(${i},this)">🔗 Link</button><input type="url" id="doc-url-${i}" placeholder="Drive URL..." style="display:none;font-size:12px;padding:4px 8px;border:1px solid var(--border);border-radius:var(--radius);flex:2" onblur="saveDocUrl(${i})" onkeydown="if(event.key==='Enter')saveDocUrl(${i})">`
-      }
-      ${d.custom?`<button class="btn btn-sm btn-danger" style="padding:2px 6px;font-size:11px" onclick="delCaseDoc(${i})">✕</button>`:''}
-    </div>`).join('');
+    cd.docs.map((d,i)=>{
+      const ackBadge=d.acknowledged&&d.acknowledgedDate?`<span style="font-size:10px;background:#e1f5ee;color:#085041;padding:1px 6px;border-radius:99px;margin-left:4px">Ackd ${fmtDisplay(d.acknowledgedDate)}</span>`:'';
+      const driveBtn=d.url?`<a href="${escHtml(d.url)}" target="_blank" class="btn btn-sm btn-green" style="font-size:11px;padding:2px 8px;white-space:nowrap">📂 Open</a>`
+        :`<button class="btn btn-sm" style="font-size:11px;padding:2px 8px;white-space:nowrap" onclick="toggleDocLink(${i},this)">🔗 Link</button>
+         <input type="url" id="doc-url-${i}" placeholder="Drive URL..." style="display:none;font-size:12px;padding:4px 8px;border:1px solid var(--border);border-radius:var(--radius);flex:2;min-width:0" onblur="saveDocUrl(${i})" onkeydown="if(event.key==='Enter')saveDocUrl(${i})">`;
+      const ackSection=`<div style="display:flex;align-items:center;gap:6px;margin-top:4px;flex-wrap:wrap">
+        <input type="checkbox" ${d.acknowledged?'checked':''} onchange="toggleAcknowledged(${i})" style="accent-color:var(--teal);cursor:pointer">
+        <label style="font-size:11px;color:var(--text3);cursor:pointer" onclick="toggleAcknowledged(${i})">Mgmt acknowledged receipt</label>
+        ${d.acknowledged?`<input type="date" id="doc-ackdate-${i}" value="${d.acknowledgedDate||''}" style="font-size:11px;padding:2px 6px;border:1px solid var(--border);border-radius:var(--radius)" onchange="saveAcknowledgedDate(${i})">`:''}
+        ${ackBadge}
+      </div>`;
+      return`<div class="check-item${d.done?' checked':''}" style="flex-direction:column;align-items:stretch;padding:8px 0">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+          <input type="checkbox" ${d.done?'checked':''} onchange="toggleCaseDoc(${i})" style="flex-shrink:0">
+          <span style="flex:1;min-width:0">${escHtml(d.text)}${d.custom&&!d.fromEvent?' <span style="font-size:10px;color:#aaa">(custom)</span>':''}${d.fromEvent?' <span style="font-size:10px;color:var(--teal)">(from events)</span>':''}</span>
+          ${driveBtn}
+          ${d.custom?`<button class="btn btn-sm btn-danger" style="padding:2px 6px;font-size:11px" onclick="delCaseDoc(${i})">✕</button>`:''}
+        </div>
+        ${ackSection}
+      </div>`;
+    }).join('');
+
+  // Render event log docs section
+  renderCFEventDocs();
+}
+
+function renderCFEventDocs(){
+  if(!activeCaseId)return;
+  const cd=getCaseData(activeCaseId);
+  const _m=document.getElementById('cf-modal-overlay');const inModal=_m&&_m.style.display!=='none';
+  const el=inModal?_m.querySelector('#cf-evtdocs-list'):document.getElementById('cf-evtdocs-list');
+  if(!el)return;
+  const linked=(cd.notes||[]).filter(n=>n.url).sort((a,b)=>new Date(b.ts)-new Date(a.ts));
+  if(!linked.length){el.innerHTML='<p style="font-size:13px;color:#aaa">No Drive links attached to events yet. Use ＋ attach Drive link when logging an event.</p>';return;}
+  el.innerHTML=linked.map(n=>`<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #f0ede8;flex-wrap:wrap">
+    <div style="flex:1;min-width:0">
+      <div style="font-size:13px;font-weight:600;color:var(--text)">${escHtml(n.docLabel||(EVT_LABELS[n.type]||n.type))}</div>
+      <div style="font-size:11px;color:var(--text3);margin-top:2px">${n.date?fmtDisplay(n.date):'—'} · ${EVT_LABELS[n.type]||n.type}</div>
+    </div>
+    <a href="${escHtml(n.url)}" target="_blank" class="btn btn-sm btn-green" style="font-size:11px;white-space:nowrap">📂 Open in Drive</a>
+  </div>`).join('');
 }
 
 function toggleDocLink(idx,btn){
-  const inp=document.getElementById('doc-url-'+idx);
   if(!inp)return;
   inp.style.display=inp.style.display==='none'?'inline-block':'none';
   if(inp.style.display!=='none')inp.focus();
