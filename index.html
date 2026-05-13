@@ -707,8 +707,15 @@ tr:hover td{background:#faf9f7}
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start">
         <!-- LEFT: Article 16 Timeline -->
         <div>
-          <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px">Article 16 timeline</div>
-          <div style="display:flex;gap:12px;margin-bottom:12px;flex-wrap:wrap">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+            <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;flex:1" id="cf-timeline-label">Article 16 timeline</div>
+            <div style="display:flex;border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;flex-shrink:0">
+              <button id="tl-btn-art16" onclick="setTimelineView('art16')" style="padding:4px 9px;border:none;background:var(--navy);color:#fff;font-size:10px;font-family:'Georgia',serif;cursor:pointer">Art. 16</button>
+              <button id="tl-btn-all" onclick="setTimelineView('all')" style="padding:4px 9px;border:none;background:#fff;color:var(--text3);font-size:10px;font-family:'Georgia',serif;cursor:pointer">All</button>
+              <button id="tl-btn-comms" onclick="setTimelineView('comms')" style="padding:4px 9px;border:none;background:#fff;color:var(--text3);font-size:10px;font-family:'Georgia',serif;cursor:pointer">Comms</button>
+            </div>
+          </div>
+          <div style="display:flex;gap:12px;margin-bottom:12px;flex-wrap:wrap" id="cf-timeline-legend">
             <span style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text3)"><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#534ab7;flex-shrink:0"></span>Union deadline</span>
             <span style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text3)"><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#0f6e56;flex-shrink:0"></span>Mgmt deadline</span>
             <span style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text3)"><span style="display:inline-block;width:10px;height:10px;border-radius:50%;border:2px dashed #aaa;flex-shrink:0"></span>Estimated</span>
@@ -756,6 +763,13 @@ tr:hover td{background:#faf9f7}
                     <option value="mgmt-info-received">Information request fulfilled</option>
                     <option value="mgmt-denied">Grievance denied</option>
                   </optgroup>
+                  <optgroup label="Communications / Informal">
+                    <option value="member-followup">Member follow-up</option>
+                    <option value="member-meeting">Member meeting held</option>
+                    <option value="touchbase-discussed">Discussed at mgmt touchbase</option>
+                    <option value="officer-discussed">Discussed at officer meeting</option>
+                    <option value="steward-update">Steward update / handoff</option>
+                  </optgroup>
                   <optgroup label="Status">
                     <option value="resolved">Resolved / settled</option>
                     <option value="on-hold">Placed on hold</option>
@@ -788,10 +802,8 @@ tr:hover td{background:#faf9f7}
             <div id="cf-evt-preview" style="display:none;background:#e1f5ee;border:1px solid #0f6e56;border-radius:var(--radius);padding:10px 12px;font-size:12px;color:#085041;margin-bottom:10px"></div>
             <button class="btn btn-primary btn-sm" onclick="addCaseEvent()">Log Event</button>
           </div>
-          <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin:14px 0 8px">Event history</div>
-          <div id="cf-activity-list"></div>
           <!-- Case Tasks section -->
-          <div style="margin-top:18px;border-top:1px solid var(--border);padding-top:14px">
+          <div style="margin-bottom:14px;border-bottom:1px solid var(--border);padding-bottom:14px">
             <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
               <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;flex:1">Case tasks</div>
               <button class="btn btn-sm btn-primary" style="font-size:11px" onclick="showCaseTaskForm()">+ Add task</button>
@@ -811,6 +823,8 @@ tr:hover td{background:#faf9f7}
             </div>
             <div id="cf-tasks-list"></div>
           </div>
+          <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin:14px 0 8px">Event history</div>
+          <div id="cf-activity-list"></div>
         </div>
       </div>
     </div>
@@ -2353,13 +2367,17 @@ const EVT_LABELS={
   'arb-hearing-held':'Arbitration hearing held',
   'mgmt-response-step1':'Step 1 response received','mgmt-response-step2':'Step 2 response received',
   'mgmt-response-step3':'Step 3 response received','mgmt-response-overdue':'Mgmt response overdue',
-  'mgmt-response-partial':'Partial response received (obligation remains open',
+  'mgmt-response-partial':'Partial response received (obligation remains open)',
   'mgmt-mtg-scheduled':'Meeting scheduled by mgmt','mgmt-mtg-held':'Meeting held',
   'mgmt-extension':'Extension agreed (mgmt)','mgmt-info-received':'Info request fulfilled',
   'mgmt-denied':'Grievance denied','mgmt-response-received':'Mgmt response received',
   'resolved':'Resolved / settled','on-hold':'Placed on hold',
   'note':'Note','action':'Action item','member':'Member contact','auto':'System',
-  'step3-filed':'Step 3 filed'
+  'step3-filed':'Step 3 filed',
+  // New communication / informal event types
+  'member-followup':'Member follow-up','member-meeting':'Member meeting held',
+  'touchbase-discussed':'Discussed at mgmt touchbase','officer-discussed':'Discussed at officer meeting',
+  'steward-update':'Steward update / handoff'
 };
 // owner: 'union'=purple, 'mgmt'=teal
 const EVT_OWNER={
@@ -2380,7 +2398,9 @@ const EVT_OWNER={
   'mgmt-response-partial':'mgmt',// partial — mgmt still owes remainder
   'mgmt-denied':'union','mgmt-response-received':'union',
   'mgmt-mtg-scheduled':'mgmt','mgmt-mtg-held':'both',
-  'resolved':'both','on-hold':'both','note':'','action':'union','member':'union','auto':''
+  'resolved':'both','on-hold':'both','note':'','action':'union','member':'union','auto':'',
+  // Communication / informal — ball doesn't move
+  'member-followup':'','member-meeting':'','touchbase-discussed':'','officer-discussed':'','steward-update':''
 };
 const EVT_COLORS={
   'union-filed-step1':'#534ab7','union-filed-step2':'#534ab7','union-filed-step3':'#534ab7',
@@ -2395,7 +2415,9 @@ const EVT_COLORS={
   'mgmt-mtg-scheduled':'var(--teal)','mgmt-mtg-held':'var(--teal)',
   'mgmt-extension':'var(--amber)','mgmt-info-received':'var(--teal)','mgmt-denied':'var(--red)',
   'resolved':'#27500a','on-hold':'#888','note':'#888','action':'var(--amber)',
-  'member':'#4285f4','auto':'#ccc','step3-filed':'#534ab7'
+  'member':'#4285f4','auto':'#ccc','step3-filed':'#534ab7',
+  'member-followup':'#4285f4','member-meeting':'#4285f4',
+  'touchbase-discussed':'var(--teal)','officer-discussed':'var(--purple)','steward-update':'var(--amber)'
 };
 const EVT_AUTO_DEADLINES={
   'union-filed-step1':[{label:'Mgmt: oral reply due (Art. 16H)',days:7,owner:'mgmt',moType:'Step response due'}],
@@ -2415,7 +2437,8 @@ const EVT_AUTO_DEADLINES={
   'mgmt-mtg-held':[{label:'Mgmt: written response due after meeting (Art. 16J)',days:14,owner:'mgmt',moType:'Step response due'}],
   'mgmt-denied':[],'resolved':[],'on-hold':[],'note':[],'action':[],'member':[],'union-withdrew':[],
   'step1-mtg-scheduled':[],'step2-mtg-scheduled':[],'step3-mtg-scheduled':[],
-  'prearb-mtg-scheduled':[],'arb-hearing-scheduled':[],'prearb-meeting-held':[],'step3-filed':[]
+  'prearb-mtg-scheduled':[],'arb-hearing-scheduled':[],'prearb-meeting-held':[],'step3-filed':[],
+  'member-followup':[],'member-meeting':[],'touchbase-discussed':[],'officer-discussed':[],'steward-update':[]
 };
 
 // ── BALL IN COURT CALCULATOR ──────────────────────────────────────────
@@ -2490,54 +2513,96 @@ function renderCFHealthBanner(){
     </div>`;
 }
 
-// ── RENDER CASE TIMELINE ──────────────────────────────────────────────
+// ── TIMELINE VIEW STATE ───────────────────────────────────────────────
+let timelineView='art16'; // 'art16' | 'all' | 'comms'
+
+const COMMS_TYPES=['member-followup','member-meeting','touchbase-discussed','officer-discussed','steward-update','note','member','action'];
+const ART16_TYPES=['union-filed-step1','union-filed-step2','union-filed-step3','union-filed-arb','union-info-request','union-extension','union-withdrew',
+  'step1-mtg-scheduled','step2-mtg-scheduled','step3-mtg-scheduled','prearb-mtg-scheduled','arb-hearing-scheduled',
+  'step1-meeting-held','step2-meeting-held','step3-meeting-held','prearb-meeting-held','arb-hearing-held',
+  'mgmt-response-step1','mgmt-response-step2','mgmt-response-step3','mgmt-response-overdue','mgmt-response-partial',
+  'mgmt-mtg-scheduled','mgmt-mtg-held','mgmt-extension','mgmt-info-received','mgmt-denied','mgmt-response-received',
+  'resolved','on-hold','step3-filed','union-contact'];
+
+function setTimelineView(view){
+  timelineView=view;
+  // Update button styles
+  ['art16','all','comms'].forEach(v=>{
+    const btn=document.getElementById('tl-btn-'+v);
+    if(btn){btn.style.background=v===view?'var(--navy)':'#fff';btn.style.color=v===view?'#fff':'var(--text3)';}
+  });
+  // Update label
+  const label=document.getElementById('cf-timeline-label');
+  if(label){label.textContent=view==='art16'?'Article 16 timeline':view==='all'?'All events':'Communications / informal';}
+  // Update legend visibility
+  const legend=document.getElementById('cf-timeline-legend');
+  if(legend)legend.style.display=view==='comms'?'none':'flex';
+  renderCFTimeline();
+}
+
 function renderCFTimeline(){
   if(!activeCaseId)return;
   const _m=document.getElementById('cf-modal-overlay');const inModal=_m&&_m.style.display!=='none';
   const el=(inModal?_m.querySelector('#cf-timeline'):null)||document.getElementById('cf-timeline');
   if(!el)return;
   const cd=getCaseData(activeCaseId);
-  const g=grievances.find(x=>x.id==activeCaseId);
-  // Filter: exclude auto/status events from timeline — they are noise not Article 16 steps
-  const TIMELINE_SKIP=['auto','status','note','action','member'];
-  const notes=(cd.notes||[]).filter(n=>!TIMELINE_SKIP.includes(n.type)).sort((a,b)=>new Date(a.ts)-new Date(b.ts));
 
-  // Build timeline items — past events show as milestones, no overdue coloring
-  const items=[];
-  notes.forEach(n=>{
-    const owner=EVT_OWNER[n.type]||'';
-    const color=owner==='union'?'#534ab7':owner==='mgmt'?'#0f6e56':owner==='both'?'#ba7517':'#888';
-    const label=EVT_LABELS[n.type]||n.type;
-    const displayDate=n.date||n.ts.split('T')[0];
-    let sublabel='';
-    if(n.plannedDate)sublabel='Planned: '+fmtDisplay(n.plannedDate);
-    items.push({label,date:displayDate,color,owner,sublabel,estimated:false,past:true,notes:n.notes||n.text||''});
+  // Filter notes based on current view
+  let filtered=(cd.notes||[]).filter(n=>n.type!=='auto'&&n.type!=='status');
+  if(timelineView==='art16'){
+    filtered=filtered.filter(n=>ART16_TYPES.includes(n.type));
+  } else if(timelineView==='comms'){
+    filtered=filtered.filter(n=>COMMS_TYPES.includes(n.type));
+  }
+  // Sort chronologically by event date, then by log timestamp
+  filtered.sort((a,b)=>{
+    const da=a.date?new Date(a.date+'T00:00:00'):new Date(a.ts);
+    const db=b.date?new Date(b.date+'T00:00:00'):new Date(b.ts);
+    return da-db;
   });
 
-  // Add up to 2 estimated FUTURE deadline items from the last logged event
-  if(notes.length){
-    const last=notes[notes.length-1];
-    const autoD=EVT_AUTO_DEADLINES[last.type]||[];
-    const base=last.date?parseDate(last.date):new Date(last.ts);
-    autoD.slice(0,2).forEach(d=>{
-      const dlDate=new Date(base);dlDate.setDate(dlDate.getDate()+d.days);
-      const color=d.owner==='union'?'#534ab7':'#0f6e56';
-      items.push({label:d.label,date:isoDate(dlDate),color,owner:d.owner,estimated:true,past:false,notes:''});
-    });
+  // Build items
+  const items=[];
+  filtered.forEach(n=>{
+    const owner=EVT_OWNER[n.type]||'';
+    const color=EVT_COLORS[n.type]||'#888';
+    const label=EVT_LABELS[n.type]||n.type;
+    const displayDate=n.date||n.ts.split('T')[0];
+    const isComms=COMMS_TYPES.includes(n.type);
+    let sublabel='';
+    if(n.plannedDate)sublabel='Planned: '+fmtDisplay(n.plannedDate);
+    items.push({label,date:displayDate,color,owner,sublabel,estimated:false,isComms,notes:n.notes||n.text||''});
+  });
+
+  // Add up to 2 estimated future deadlines (only in art16 and all views)
+  if(timelineView!=='comms'&&filtered.length){
+    // Use last Art16 event for estimates
+    const art16Notes=(cd.notes||[]).filter(n=>ART16_TYPES.includes(n.type)).sort((a,b)=>new Date(a.ts)-new Date(b.ts));
+    if(art16Notes.length){
+      const last=art16Notes[art16Notes.length-1];
+      const autoD=EVT_AUTO_DEADLINES[last.type]||[];
+      const base=last.date?parseDate(last.date):new Date(last.ts);
+      autoD.slice(0,2).forEach(d=>{
+        const dlDate=new Date(base);dlDate.setDate(dlDate.getDate()+d.days);
+        const color=d.owner==='union'?'#534ab7':'#0f6e56';
+        items.push({label:d.label,date:isoDate(dlDate),color,owner:d.owner,estimated:true,isComms:false,notes:''});
+      });
+    }
   }
 
   if(!items.length){
-    el.innerHTML='<div style="font-size:12px;color:var(--text3);padding:12px;text-align:center">No events logged yet.<br>Use the form to log the first event.</div>';
+    const msg=timelineView==='comms'?'No communications logged yet.':timelineView==='all'?'No events logged yet.':'No Article 16 events logged yet.';
+    el.innerHTML=`<div style="font-size:12px;color:var(--text3);padding:12px;text-align:center">${msg}<br>Use the form to log the first event.</div>`;
     return;
   }
 
-  // Render timeline
+  // Render
   let html='<div style="position:relative;padding-left:20px">';
   html+='<div style="position:absolute;left:6px;top:0;bottom:0;width:2px;background:var(--border)"></div>';
-  items.forEach((item,i)=>{
+  items.forEach(item=>{
     const df=item.date?diffDays(item.date):null;
-    let dateStr=item.date?fmtDisplay(item.date):'—';
-    // Only show urgency on ESTIMATED future deadlines — past events are just milestones
+    const dateStr=item.date?fmtDisplay(item.date):'—';
+    // Urgency only on estimated future deadlines
     let urgStr='';
     if(item.estimated&&df!==null){
       if(df<0)urgStr=`<span style="color:var(--red);font-size:10px;font-weight:600"> ${Math.abs(df)}d overdue</span>`;
@@ -2545,15 +2610,19 @@ function renderCFTimeline(){
       else if(df<=7)urgStr=`<span style="color:var(--amber);font-size:10px;font-weight:600"> in ${df}d</span>`;
       else urgStr=`<span style="color:var(--text3);font-size:10px"> in ${df}d</span>`;
     }
-    const dotStyle=item.estimated
-      ?`border:2px dashed #aaa;background:var(--white)`
-      :`background:${item.color}`;
-    const textStyle=item.estimated?'color:var(--text3);font-style:italic':'color:var(--text)';
-    html+=`<div style="position:relative;margin-bottom:14px;${item.estimated?'opacity:0.75':''}">
-      <div style="position:absolute;left:-17px;top:3px;width:12px;height:12px;border-radius:50%;${dotStyle}"></div>
-      <div style="font-size:12px;font-weight:${item.estimated?'400':'600'};${textStyle}">${escHtml(item.label)}</div>
+    const dotStyle=item.estimated?`border:2px dashed #aaa;background:var(--white)`:`background:${item.color}`;
+    // Comms and notes: smaller, gray — don't compete with Art16 steps
+    const isMinor=item.isComms&&timelineView==='all';
+    const labelSize=isMinor?'11px':'12px';
+    const labelWeight=item.estimated?'400':isMinor?'400':'600';
+    const labelColor=item.estimated||isMinor?'var(--text3)':'var(--text)';
+    const fontStyle=item.estimated?'italic':'normal';
+    html+=`<div style="position:relative;margin-bottom:${isMinor?'8px':'14px'};${item.estimated?'opacity:0.75':''}">
+      <div style="position:absolute;left:-17px;top:3px;width:${isMinor?'8px':'12px'};height:${isMinor?'8px':'12px'};border-radius:50%;${dotStyle};${isMinor?'left:-15px':''}"></div>
+      <div style="font-size:${labelSize};font-weight:${labelWeight};color:${labelColor};font-style:${fontStyle}">${escHtml(item.label)}</div>
       <div style="font-size:11px;color:var(--text3);margin-top:1px">${dateStr}${urgStr}${item.sublabel?' · '+escHtml(item.sublabel):''}${item.estimated?' · estimated':''}</div>
-      ${item.notes&&!item.estimated?`<div style="font-size:11px;color:var(--text2);margin-top:2px;font-style:italic">${escHtml(item.notes.substring(0,80))}${item.notes.length>80?'…':''}</div>`:''}
+      ${item.notes&&!item.estimated&&!isMinor?`<div style="font-size:11px;color:var(--text2);margin-top:2px;font-style:italic">${escHtml(item.notes.substring(0,80))}${item.notes.length>80?'…':''}</div>`:''}
+      ${item.notes&&isMinor?`<div style="font-size:10px;color:var(--text3);margin-top:1px;font-style:italic">${escHtml(item.notes.substring(0,60))}${item.notes.length>60?'…':''}</div>`:''}
     </div>`;
   });
   html+='</div>';
@@ -3177,8 +3246,15 @@ function openCaseFile(id){
       <div id="cf-health-banner" style="background:var(--navy);color:#fff;border-radius:var(--radius);padding:12px 16px;margin-bottom:14px;display:flex;align-items:center;gap:20px;flex-wrap:wrap"></div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start">
         <div>
-          <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px">Article 16 timeline</div>
-          <div style="display:flex;gap:12px;margin-bottom:10px;flex-wrap:wrap">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+            <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;flex:1" id="cf-timeline-label">Article 16 timeline</div>
+            <div style="display:flex;border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;flex-shrink:0">
+              <button id="tl-btn-art16" onclick="setTimelineView(\'art16\')" style="padding:4px 9px;border:none;background:var(--navy);color:#fff;font-size:10px;font-family:\'Georgia\',serif;cursor:pointer">Art. 16</button>
+              <button id="tl-btn-all" onclick="setTimelineView(\'all\')" style="padding:4px 9px;border:none;background:#fff;color:var(--text3);font-size:10px;font-family:\'Georgia\',serif;cursor:pointer">All</button>
+              <button id="tl-btn-comms" onclick="setTimelineView(\'comms\')" style="padding:4px 9px;border:none;background:#fff;color:var(--text3);font-size:10px;font-family:\'Georgia\',serif;cursor:pointer">Comms</button>
+            </div>
+          </div>
+          <div style="display:flex;gap:12px;margin-bottom:10px;flex-wrap:wrap" id="cf-timeline-legend">
             <span style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text3)"><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#534ab7;flex-shrink:0"></span>Union deadline</span>
             <span style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text3)"><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#0f6e56;flex-shrink:0"></span>Mgmt deadline</span>
             <span style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text3)"><span style="display:inline-block;width:10px;height:10px;border-radius:50%;border:2px dashed #aaa;flex-shrink:0"></span>Estimated</span>
@@ -3225,6 +3301,13 @@ function openCaseFile(id){
                     <option value="mgmt-info-received">Information request fulfilled</option>
                     <option value="mgmt-denied">Grievance denied</option>
                   </optgroup>
+                  <optgroup label="Communications / Informal">
+                    <option value="member-followup">Member follow-up</option>
+                    <option value="member-meeting">Member meeting held</option>
+                    <option value="touchbase-discussed">Discussed at mgmt touchbase</option>
+                    <option value="officer-discussed">Discussed at officer meeting</option>
+                    <option value="steward-update">Steward update / handoff</option>
+                  </optgroup>
                   <optgroup label="Status">
                     <option value="resolved">Resolved / settled</option>
                     <option value="on-hold">Placed on hold</option>
@@ -3256,9 +3339,7 @@ function openCaseFile(id){
             <div id="cf-evt-preview" style="display:none;background:#e1f5ee;border:1px solid #0f6e56;border-radius:var(--radius);padding:10px 12px;font-size:12px;color:#085041;margin-bottom:10px"></div>
             <button class="btn btn-primary btn-sm" onclick="addCaseEvent()">Log Event</button>
           </div>
-          <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin:14px 0 8px">Event history</div>
-          <div id="cf-activity-list"></div>
-          <div style="margin-top:18px;border-top:1px solid var(--border);padding-top:14px">
+          <div style="margin-bottom:14px;border-bottom:1px solid var(--border);padding-bottom:14px">
             <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
               <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;flex:1">Case tasks</div>
               <button class="btn btn-sm btn-primary" style="font-size:11px" onclick="showCaseTaskForm()">+ Add task</button>
@@ -3278,6 +3359,8 @@ function openCaseFile(id){
             </div>
             <div id="cf-tasks-list"></div>
           </div>
+          <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin:0 0 8px">Event history</div>
+          <div id="cf-activity-list"></div>
         </div>
       </div>`,
         inforeq:()=>`
