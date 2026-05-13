@@ -824,6 +824,14 @@ tr:hover td{background:#faf9f7}
             </div>
             <div id="cf-tasks-list"></div>
           </div>
+          <!-- Case Obligations section -->
+          <div style="margin-bottom:14px;border-bottom:1px solid var(--border);padding-bottom:14px">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+              <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;flex:1">Case obligations</div>
+              <span style="font-size:10px;color:var(--text3)">Mgmt owes us · We owe mgmt</span>
+            </div>
+            <div id="cf-obligations-list"></div>
+          </div>
           <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin:14px 0 8px">Event history</div>
           <div id="cf-activity-list"></div>
         </div>
@@ -942,7 +950,6 @@ tr:hover td{background:#faf9f7}
   <div class="card" style="padding:0;overflow:hidden">
     <div style="display:flex;align-items:center;gap:10px;padding:14px 18px;border-bottom:1px solid var(--border);flex-wrap:wrap">
       <div class="card-title" style="margin:0;flex:1">Outstanding Items</div>
-      <button class="btn btn-sm" onclick="syncMgmtOwesFromCases()" style="font-size:11px;color:var(--teal);border-color:var(--teal)">↻ Sync from cases</button>
       <select id="mo-filter" onchange="renderMgmtOwes()" style="font-size:12px;padding:5px 8px;width:auto">
         <option value="">All types</option>
         <option>Step response due</option><option>Information request (Art. 16 Sec. 3)</option>
@@ -985,7 +992,6 @@ tr:hover td{background:#faf9f7}
     </div>
     <div style="display:flex;gap:8px">
       <button class="btn btn-primary" onclick="addUnionOwes()">Add Item</button>
-      <button class="btn btn-sm" onclick="syncUnionOwesFromCases()" style="color:var(--purple);border-color:var(--purple);font-size:11px">↻ Sync from cases</button>
       <button class="btn btn-sm btn-green" onclick="exportCSV('union-owes')" style="margin-left:auto">⬇ Export CSV</button>
     </div>
   </div>
@@ -1356,7 +1362,8 @@ function mapSteward(r){
 function mapMgmtOwes(r){
   return{id:r.id,what:r.what,type:r.type||'',due:r.due||'',gnum:r.gnum||'',
     contact:r.contact||'',pri:r.pri||'med',notes:r.notes||'',
-    received:r.received||false,receivedDate:r.received_date||'',created:r.created||''};
+    received:r.received||false,receivedDate:r.received_date||'',created:r.created||'',
+    superseded:r.superseded||false,supersededAt:r.superseded_at||''};
 }
 function grievanceToDb(g,editorName){
   return{id:g.id,num:g.num,date:g.date||null,last_name:g.lastName||null,
@@ -1377,7 +1384,8 @@ function stewardToDb(s,editorName){
 function mgmtOwesToDb(x){
   return{id:x.id,what:x.what,type:x.type||null,due:x.due||null,gnum:x.gnum||null,
     contact:x.contact||null,pri:x.pri||'med',notes:x.notes||null,
-    received:x.received||false,received_date:x.receivedDate||null,created:x.created||today()};
+    received:x.received||false,received_date:x.receivedDate||null,created:x.created||today(),
+    superseded:x.superseded||false,superseded_at:x.supersededAt||null};
 }
 
 function today(){return new Date().toISOString().split('T')[0];}
@@ -2685,10 +2693,10 @@ function addCaseEvent(){
     const dl=new Date(base);dl.setDate(dl.getDate()+d.days);
     const dlStr=isoDate(dl);
     if(d.owner==='mgmt'&&d.moType){
-      mgmtOwes.unshift({id:Date.now()+Math.random(),what:d.label+(g?' — Grievance #'+g.num:''),type:d.moType,due:dlStr,gnum:g?g.num:'',contact:'',pri:'high',notes:'Auto-created from event log',received:false,receivedDate:'',created:today()});
+      mgmtOwes.unshift({id:Date.now()+Math.floor(Math.random()*1000),what:d.label+(g?' — Grievance #'+g.num:''),type:d.moType,due:dlStr,gnum:g?g.num:'',contact:'',pri:'high',notes:'Auto-created from event log',received:false,receivedDate:'',created:today()});
       sbSaveMgmtOwes(mgmtOwes[0]);
     } else if(d.owner==='union'){
-      const newDl={id:Date.now()+Math.random(),name:d.label+(g?' — Grievance #'+g.num:''),date:dlStr,cat:'Grievance step',gnum:g?g.num:'',notes:'Auto-created from event log',done:false};
+      const newDl={id:Date.now()+Math.floor(Math.random()*1000),name:d.label+(g?' — Grievance #'+g.num:''),date:dlStr,cat:'Grievance step',gnum:g?g.num:'',notes:'Auto-created from event log',done:false};
       deadlines.push(newDl);sbSaveDeadline(newDl);
     }
   });
@@ -2738,6 +2746,8 @@ function addCaseEvent(){
     // Auto-update next deadline on grievance from calculated value
     const nextDl=calcNextDeadline(activeCaseId);
     if(nextDl){g.deadline=nextDl.date;}
+    // Supersede prior step obligations when a higher step is filed
+    supersedePriorObligations(g.num,type);
   }
   sbSaveCaseData(activeCaseId);sbSaveGrievance(grievances.find(x=>x.id==activeCaseId)||{});
   renderCFActivity();renderGrievances();renderGMetrics();
@@ -2874,6 +2884,83 @@ function deleteCaseTask(id){
   sbDeleteTask(id);renderCaseTasks();renderTaskMetrics();
 }
 
+// ── CASE OBLIGATIONS (Mgmt Owes Us + Union Owes filtered to this case) ─
+function renderCaseObligations(){
+  if(!activeCaseId)return;
+  const g=grievances.find(x=>x.id==activeCaseId);if(!g)return;
+  const _m=document.getElementById('cf-modal-overlay');const inModal=_m&&_m.style.display!=='none';
+  const el=inModal?_m.querySelector('#cf-obligations-list'):document.getElementById('cf-obligations-list');
+  if(!el)return;
+
+  const moItems=mgmtOwes.filter(x=>x.gnum&&x.gnum.trim()===g.num.trim());
+  const uoItems=unionOwes.filter(x=>x.gnum&&x.gnum.trim()===g.num.trim());
+
+  if(!moItems.length&&!uoItems.length){
+    el.innerHTML='<p style="font-size:12px;color:#aaa">No obligations linked to this case yet.</p>';
+    return;
+  }
+
+  const renderItem=(x,isMgmt)=>{
+    const df=x.due?diffDays(x.due):null;
+    const done=isMgmt?(x.received||x.superseded):x.done;
+    let dueStr='',dueCls='';
+    if(done){
+      dueStr=x.superseded?'<span style="color:#888;font-size:11px">Superseded</span>':
+             `<span style="color:var(--teal);font-size:11px">✓ ${isMgmt?'Received':'Done'}</span>`;
+    } else if(x.due){
+      if(df<0){dueCls='dl-red';dueStr=Math.abs(df)+'d overdue';}
+      else if(df===0){dueCls='dl-red';dueStr='Due TODAY';}
+      else if(df<=7){dueCls='dl-amber';dueStr='in '+df+'d';}
+      else dueStr=fmtDisplay(x.due);
+    }
+    const dotColor=isMgmt?'#0f6e56':'#534ab7';
+    const actionBtn=done?'':isMgmt
+      ?`<button class="btn btn-sm btn-green" style="font-size:11px;padding:2px 8px" onclick="markMoReceived(${x.id})">✓ Received</button>`
+      :`<button class="btn btn-sm btn-green" style="font-size:11px;padding:2px 8px" onclick="markUnionOwesDone(${x.id})">✓ Done</button>`;
+    return`<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #f0ede8;${done?'opacity:0.55':''}">
+      <span style="width:7px;height:7px;border-radius:50%;background:${dotColor};flex-shrink:0"></span>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:12px;font-weight:600;color:var(--text)">${escHtml(x.what||'')}</div>
+        <div style="font-size:11px;color:var(--text3)">${isMgmt?'Mgmt owes':'We owe'}${x.type?' · '+x.type:''}</div>
+      </div>
+      <div class="${dueCls}" style="font-size:11px;white-space:nowrap">${dueStr}</div>
+      ${actionBtn}
+    </div>`;
+  };
+
+  let html='';
+  if(moItems.length){
+    html+=`<div style="font-size:10px;font-weight:700;color:#0f6e56;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">Mgmt owes us</div>`;
+    html+=moItems.sort((a,b)=>((a.received||a.superseded)?1:-1)||0).map(x=>renderItem(x,true)).join('');
+  }
+  if(uoItems.length){
+    html+=`<div style="font-size:10px;font-weight:700;color:#534ab7;text-transform:uppercase;letter-spacing:.05em;margin-top:10px;margin-bottom:4px">We owe mgmt</div>`;
+    html+=uoItems.sort((a,b)=>((a.done)?1:-1)||0).map(x=>renderItem(x,false)).join('');
+  }
+  el.innerHTML=html;
+}
+
+// ── SUPERSESSION LOGIC ────────────────────────────────────────────────
+// When Step 3 is filed, Step 2 mgmt obligations for same grievance are superseded
+function supersedePriorObligations(gnum, newStep){
+  if(!gnum)return;
+  const SUPERSEDES={
+    'union-filed-step3':['schedule Step 2','Step 2 written','Step 2 review'],
+    'union-filed-arb':['schedule Step 3','Step 3 final','Step 3 written'],
+  };
+  const keywords=SUPERSEDES[newStep]||[];
+  if(!keywords.length)return;
+  mgmtOwes.forEach(x=>{
+    if(x.received||x.superseded)return;
+    if(x.gnum!==gnum)return;
+    const whatLC=(x.what||'').toLowerCase();
+    if(keywords.some(k=>whatLC.includes(k.toLowerCase()))){
+      x.superseded=true;x.supersededAt=today();
+      sbSaveMgmtOwes(x);
+    }
+  });
+}
+
 // ── FIX-04: SYNC MGMT OWES FROM CASES ────────────────────────────────
 function syncMgmtOwesFromCases(){
   let added=0;
@@ -2891,7 +2978,7 @@ function syncMgmtOwesFromCases(){
         // Check if already exists
         const exists=mgmtOwes.find(x=>x.gnum===g.num&&x.what===label);
         if(!exists){
-          const item={id:Date.now()+Math.random(),what:label,type:d.moType,due:dlStr,
+          const item={id:Date.now()+Math.floor(Math.random()*1000),what:label,type:d.moType,due:dlStr,
             gnum:g.num,contact:'',pri:'high',notes:'Synced from case event log',
             received:false,receivedDate:'',created:today()};
           mgmtOwes.unshift(item);
@@ -2921,7 +3008,7 @@ function syncDeadlinesFromCases(){
         const label=d.label+' — Grievance #'+g.num;
         const exists=deadlines.find(x=>x.gnum===g.num&&x.name===label);
         if(!exists){
-          const item={id:Date.now()+Math.random(),name:label,date:dlStr,
+          const item={id:Date.now()+Math.floor(Math.random()*1000),name:label,date:dlStr,
             cat:'Grievance step',gnum:g.num,notes:'Synced from case event log',done:false};
           deadlines.push(item);
           sbSaveDeadline(item);
@@ -3016,7 +3103,7 @@ function syncUnionOwesFromCases(){
         const label=d.label+' — Grievance #'+g.num;
         const exists=unionOwes.find(x=>x.gnum===g.num&&x.what===label);
         if(!exists){
-          const item={id:Date.now()+Math.random(),what:label,type:'Contractual deadline',
+          const item={id:Date.now()+Math.floor(Math.random()*1000),what:label,type:'Contractual deadline',
             due:isoDate(dlDate),gnum:g.num,notes:'Synced from case event log',done:false,created:today()};
           unionOwes.unshift(item);sbSaveUnionOwes(item);added++;
         }
@@ -3033,6 +3120,7 @@ function renderCFActivity(){
   renderCFTimeline();
   renderCFHealthBanner();
   renderCaseTasks();
+  renderCaseObligations();
   const modal=document.getElementById('cf-modal-overlay');const el=(modal&&modal.querySelector('#cf-activity-list'))||document.getElementById('cf-activity-list');
   if(!el)return;
   if(!cd.notes.length){el.innerHTML='<div class="card" style="color:#aaa;font-size:13px;text-align:center;padding:20px">No events logged yet — use the form to record the first event.</div>';return;}
@@ -3371,6 +3459,14 @@ function openCaseFile(id){
               </div>
             </div>
             <div id="cf-tasks-list"></div>
+          </div>
+          <!-- Case Obligations section -->
+          <div style="margin-bottom:14px;border-bottom:1px solid var(--border);padding-bottom:14px">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+              <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;flex:1">Case obligations</div>
+              <span style="font-size:10px;color:var(--text3)">Mgmt owes us · We owe mgmt</span>
+            </div>
+            <div id="cf-obligations-list"></div>
           </div>
           <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin:0 0 8px">Event history</div>
           <div id="cf-activity-list"></div>
@@ -4824,8 +4920,8 @@ function renderMgmtOwes(){
   const fs=document.getElementById('mo-show').value;
   let list=mgmtOwes.filter(x=>{
     if(ft&&x.type!==ft)return false;
-    if(fs==='open'&&x.received)return false;
-    if(fs==='received'&&!x.received)return false;
+    if(fs==='open'&&(x.received||x.superseded))return false;
+    if(fs==='received'&&!x.received&&!x.superseded)return false;
     return true;
   });
   list.sort((a,b)=>{
@@ -4848,7 +4944,7 @@ function renderMgmtOwes(){
     return`<div class="dl-item" style="${x.received?'opacity:0.5':''}">
       <div style="min-width:8px;width:8px;height:8px;border-radius:50%;background:${x.pri==='high'?'var(--red)':x.pri==='med'?'var(--amber)':'#aaa'};flex-shrink:0"></div>
       <div class="dl-body">
-        <div class="dl-name">${escHtml(x.what)}${x.received?' <span style="color:var(--teal);font-size:11px">✓ Received</span>':''}</div>
+        <div class="dl-name">${escHtml(x.what)}${x.received?' <span style="color:var(--teal);font-size:11px">✓ Received</span>':''}${x.superseded?' <span style="background:#f0ede8;color:#888;font-size:10px;padding:1px 6px;border-radius:99px;font-weight:600">Superseded</span>':''}</div>
         <div class="dl-sub">${x.type}${x.gnum?` · <a href="#" onclick="openGrievanceFromDeadline('${escHtml(x.gnum)}');return false;" style="color:var(--navy);font-weight:600">#${escHtml(x.gnum)}</a>`:''}${x.contact?' · '+x.contact:''}${x.notes?' · '+x.notes:''}</div>
       </div>
       <div class="dl-date ${dueCls}">${dueHtml}</div>
