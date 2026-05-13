@@ -824,9 +824,9 @@ tr:hover td{background:#faf9f7}
             </div>
             <div id="cf-tasks-list"></div>
           </div>
-          <!-- Case Obligations section -->
+          <!-- Case Obligations -->
           <div style="margin-bottom:14px;border-bottom:1px solid var(--border);padding-bottom:14px">
-            <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
               <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;flex:1">Case obligations</div>
               <span style="font-size:10px;color:var(--text3)">Mgmt owes us · We owe mgmt</span>
             </div>
@@ -2743,10 +2743,10 @@ function addCaseEvent(){
       'resolved':'Resolved- in Union Favor','union-withdrew':'Closed','mgmt-denied':'Step 3-Filed'
     };
     if(statusMap[type]){g.status=statusMap[type];if(type==='resolved'||type==='union-withdrew')g.closed='Yes';}
-    // Auto-update next deadline on grievance from calculated value
+    // Auto-update next deadline
     const nextDl=calcNextDeadline(activeCaseId);
     if(nextDl){g.deadline=nextDl.date;}
-    // Supersede prior step obligations when a higher step is filed
+    // Supersede prior step obligations when higher step is filed
     supersedePriorObligations(g.num,type);
   }
   sbSaveCaseData(activeCaseId);sbSaveGrievance(grievances.find(x=>x.id==activeCaseId)||{});
@@ -2884,40 +2884,35 @@ function deleteCaseTask(id){
   sbDeleteTask(id);renderCaseTasks();renderTaskMetrics();
 }
 
-// ── CASE OBLIGATIONS (Mgmt Owes Us + Union Owes filtered to this case) ─
+// ── CASE OBLIGATIONS ──────────────────────────────────────────────────
 function renderCaseObligations(){
   if(!activeCaseId)return;
   const g=grievances.find(x=>x.id==activeCaseId);if(!g)return;
   const _m=document.getElementById('cf-modal-overlay');const inModal=_m&&_m.style.display!=='none';
   const el=inModal?_m.querySelector('#cf-obligations-list'):document.getElementById('cf-obligations-list');
   if(!el)return;
-
   const moItems=mgmtOwes.filter(x=>x.gnum&&x.gnum.trim()===g.num.trim());
   const uoItems=unionOwes.filter(x=>x.gnum&&x.gnum.trim()===g.num.trim());
-
   if(!moItems.length&&!uoItems.length){
-    el.innerHTML='<p style="font-size:12px;color:#aaa">No obligations linked to this case yet.</p>';
-    return;
+    el.innerHTML='<p style="font-size:12px;color:#aaa">No obligations linked to this case yet.</p>';return;
   }
-
   const renderItem=(x,isMgmt)=>{
     const df=x.due?diffDays(x.due):null;
     const done=isMgmt?(x.received||x.superseded):x.done;
     let dueStr='',dueCls='';
-    if(done){
-      dueStr=x.superseded?'<span style="color:#888;font-size:11px">Superseded</span>':
-             `<span style="color:var(--teal);font-size:11px">✓ ${isMgmt?'Received':'Done'}</span>`;
-    } else if(x.due){
+    if(x.superseded){dueStr='<span style="color:#888;font-size:11px">Superseded</span>';}
+    else if(done){dueStr=`<span style="color:var(--teal);font-size:11px">✓ ${isMgmt?'Received':'Done'}</span>`;}
+    else if(x.due){
       if(df<0){dueCls='dl-red';dueStr=Math.abs(df)+'d overdue';}
       else if(df===0){dueCls='dl-red';dueStr='Due TODAY';}
       else if(df<=7){dueCls='dl-amber';dueStr='in '+df+'d';}
       else dueStr=fmtDisplay(x.due);
     }
     const dotColor=isMgmt?'#0f6e56':'#534ab7';
-    const actionBtn=done?'':isMgmt
-      ?`<button class="btn btn-sm btn-green" style="font-size:11px;padding:2px 8px" onclick="markMoReceived(${x.id})">✓ Received</button>`
-      :`<button class="btn btn-sm btn-green" style="font-size:11px;padding:2px 8px" onclick="markUnionOwesDone(${x.id})">✓ Done</button>`;
-    return`<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #f0ede8;${done?'opacity:0.55':''}">
+    const actionBtn=(done||x.superseded)?'':isMgmt
+      ?`<button class="btn btn-sm btn-green" style="font-size:11px;padding:2px 8px" onclick="markMoReceived(${x.id});renderCaseObligations()">✓ Received</button>`
+      :`<button class="btn btn-sm btn-green" style="font-size:11px;padding:2px 8px" onclick="markUnionOwesDone(${x.id});renderCaseObligations()">✓ Done</button>`;
+    return`<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #f0ede8;${done||x.superseded?'opacity:0.55':''}">
       <span style="width:7px;height:7px;border-radius:50%;background:${dotColor};flex-shrink:0"></span>
       <div style="flex:1;min-width:0">
         <div style="font-size:12px;font-weight:600;color:var(--text)">${escHtml(x.what||'')}</div>
@@ -2927,28 +2922,26 @@ function renderCaseObligations(){
       ${actionBtn}
     </div>`;
   };
-
   let html='';
   if(moItems.length){
     html+=`<div style="font-size:10px;font-weight:700;color:#0f6e56;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">Mgmt owes us</div>`;
-    html+=moItems.sort((a,b)=>((a.received||a.superseded)?1:-1)||0).map(x=>renderItem(x,true)).join('');
+    html+=moItems.sort((a,b)=>((a.received||a.superseded)?1:-1)).map(x=>renderItem(x,true)).join('');
   }
   if(uoItems.length){
     html+=`<div style="font-size:10px;font-weight:700;color:#534ab7;text-transform:uppercase;letter-spacing:.05em;margin-top:10px;margin-bottom:4px">We owe mgmt</div>`;
-    html+=uoItems.sort((a,b)=>((a.done)?1:-1)||0).map(x=>renderItem(x,false)).join('');
+    html+=uoItems.sort((a,b)=>(a.done?1:-1)).map(x=>renderItem(x,false)).join('');
   }
   el.innerHTML=html;
 }
 
 // ── SUPERSESSION LOGIC ────────────────────────────────────────────────
-// When Step 3 is filed, Step 2 mgmt obligations for same grievance are superseded
-function supersedePriorObligations(gnum, newStep){
+function supersedePriorObligations(gnum,evtType){
   if(!gnum)return;
   const SUPERSEDES={
     'union-filed-step3':['schedule Step 2','Step 2 written','Step 2 review'],
     'union-filed-arb':['schedule Step 3','Step 3 final','Step 3 written'],
   };
-  const keywords=SUPERSEDES[newStep]||[];
+  const keywords=SUPERSEDES[evtType]||[];
   if(!keywords.length)return;
   mgmtOwes.forEach(x=>{
     if(x.received||x.superseded)return;
@@ -3460,9 +3453,9 @@ function openCaseFile(id){
             </div>
             <div id="cf-tasks-list"></div>
           </div>
-          <!-- Case Obligations section -->
+          <!-- Case Obligations -->
           <div style="margin-bottom:14px;border-bottom:1px solid var(--border);padding-bottom:14px">
-            <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
               <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;flex:1">Case obligations</div>
               <span style="font-size:10px;color:var(--text3)">Mgmt owes us · We owe mgmt</span>
             </div>
@@ -4629,15 +4622,16 @@ function importCSV(evt){const file=evt.target.files[0];if(!file)return;const rea
 function render21DayBanner(){
   const el=document.getElementById('banner-21day');if(!el)return;
   const today=todayDate();
-  // Find cases where date filed exists, no step filed yet, and 21-day window is closing
+  // Only flag cases still in early pre-filing status — Step/WLR/Arb/Hold are past this window
+  const EARLY_STATUSES=['Info Gathering','Problem Solving (pre-grievance)'];
   const at_risk=grievances.filter(g=>{
     if(g.closed==='Yes')return false;
     if(!g.date)return false;
+    if(!EARLY_STATUSES.includes(g.status))return false;
     const filed=parseDate(g.date);if(!filed)return false;
     const deadline=new Date(filed);deadline.setDate(deadline.getDate()+21);
     const daysLeft=Math.round((deadline-today)/86400000);
-    const alreadyFiled=g.status&&(g.status.includes('Step')||g.status.includes('Filed')||g.status==='Arbitration');
-    return !alreadyFiled&&daysLeft<=7;
+    return daysLeft<=7;
   });
   if(!at_risk.length){el.style.display='none';return;}
   el.style.display='block';
