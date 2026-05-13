@@ -218,6 +218,7 @@ tr:hover td{background:#faf9f7}
     <div class="nav-group">Cases</div>
     <div class="nav-item" onclick="showPanel('grievances',this)"><span class="nav-icon">⚖️</span> Grievance Log</div>
     <div class="nav-item" onclick="showPanel('mgmt-owes',this)"><span class="nav-icon">📌</span> Mgmt Owes Us</div>
+    <div class="nav-item" onclick="showPanel('union-owes',this)"><span class="nav-icon">📋</span> We Owe Mgmt</div>
     <div class="nav-item" onclick="showPanel('reflib',this)"><span class="nav-icon">📚</span> Reference Library</div>
     <div class="nav-item" onclick="showPanel('stewards',this)"><span class="nav-icon">👥</span> Stewards</div>
     <div class="nav-group">Admin</div>
@@ -288,6 +289,8 @@ tr:hover td{background:#faf9f7}
   <div class="card" style="padding:0;overflow:hidden">
     <div style="display:flex;align-items:center;gap:10px;padding:14px 18px;border-bottom:1px solid var(--border)">
       <div class="card-title" style="margin:0;flex:1">All Deadlines</div>
+      <button class="btn btn-sm" onclick="syncDeadlinesFromCases()" style="font-size:11px;color:var(--teal);border-color:var(--teal)">↻ Sync from cases</button>
+      <button class="btn btn-sm" onclick="clearOldOverdue()" style="color:var(--red);border-color:var(--red-light);font-size:11px">✕ Clear overdue &gt;30d</button>
       <select id="dl-filter" onchange="renderDeadlines()" style="font-size:12px;padding:5px 8px;width:auto">
         <option value="">All categories</option>
         <option>Grievance step</option><option>Arbitration</option><option>MOU / contract</option>
@@ -747,6 +750,7 @@ tr:hover td{background:#faf9f7}
                     <option value="mgmt-response-step1">Step 1 response received from mgmt</option>
                     <option value="mgmt-response-step2">Step 2 response received from mgmt</option>
                     <option value="mgmt-response-step3">Step 3 response received from mgmt</option>
+                    <option value="mgmt-response-partial">Partial response received (obligation remains open)</option>
                     <option value="mgmt-response-overdue">Mgmt response overdue / not received</option>
                     <option value="mgmt-extension">Extension agreed (mgmt requested)</option>
                     <option value="mgmt-info-received">Information request fulfilled</option>
@@ -786,6 +790,27 @@ tr:hover td{background:#faf9f7}
           </div>
           <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin:14px 0 8px">Event history</div>
           <div id="cf-activity-list"></div>
+          <!-- Case Tasks section -->
+          <div style="margin-top:18px;border-top:1px solid var(--border);padding-top:14px">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+              <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;flex:1">Case tasks</div>
+              <button class="btn btn-sm btn-primary" style="font-size:11px" onclick="showCaseTaskForm()">+ Add task</button>
+            </div>
+            <div id="cf-task-form" style="display:none;background:#f9f8f6;border:1px solid var(--border);border-radius:var(--radius);padding:12px;margin-bottom:10px">
+              <div class="form-row">
+                <div class="form-field" style="flex:3"><label>Task</label><input type="text" id="cf-tk-title" placeholder="What needs to be done?" onkeydown="if(event.key==='Enter')addCaseTask()"></div>
+                <div class="form-field" style="max-width:100px"><label>Priority</label>
+                  <select id="cf-tk-pri"><option value="high">High</option><option value="med" selected>Medium</option><option value="low">Low</option></select>
+                </div>
+                <div class="form-field" style="max-width:140px"><label>Due date</label><input type="date" id="cf-tk-due"></div>
+              </div>
+              <div style="display:flex;gap:8px">
+                <button class="btn btn-primary btn-sm" onclick="addCaseTask()">Add</button>
+                <button class="btn btn-sm" onclick="document.getElementById('cf-task-form').style.display='none'">Cancel</button>
+              </div>
+            </div>
+            <div id="cf-tasks-list"></div>
+          </div>
         </div>
       </div>
     </div>
@@ -902,6 +927,7 @@ tr:hover td{background:#faf9f7}
   <div class="card" style="padding:0;overflow:hidden">
     <div style="display:flex;align-items:center;gap:10px;padding:14px 18px;border-bottom:1px solid var(--border);flex-wrap:wrap">
       <div class="card-title" style="margin:0;flex:1">Outstanding Items</div>
+      <button class="btn btn-sm" onclick="syncMgmtOwesFromCases()" style="font-size:11px;color:var(--teal);border-color:var(--teal)">↻ Sync from cases</button>
       <select id="mo-filter" onchange="renderMgmtOwes()" style="font-size:12px;padding:5px 8px;width:auto">
         <option value="">All types</option>
         <option>Step response due</option><option>Information request (Art. 16 Sec. 3)</option>
@@ -913,6 +939,49 @@ tr:hover td{background:#faf9f7}
       </select>
     </div>
     <div id="mgmt-owes-list"></div>
+  </div>
+</div>
+
+<!-- UNION OWES MANAGEMENT -->
+<div id="panel-union-owes" class="panel">
+  <h1>We Owe Management</h1>
+  <p class="subtitle">Union contractual obligations, appeal deadlines, and commitments owed to management</p>
+  <div class="metrics" id="uo-metrics"></div>
+  <div class="card">
+    <div class="card-title">Add Item</div>
+    <div class="form-row">
+      <div class="form-field" style="flex:3"><label>What we owe</label><input type="text" id="uo-what" placeholder="e.g. Step 2 appeal filing, arbitration notice, extension response"></div>
+      <div class="form-field"><label>Type</label>
+        <select id="uo-type">
+          <option>Contractual deadline</option>
+          <option>Step 2 appeal</option>
+          <option>Step 3 appeal</option>
+          <option>Arbitration notice</option>
+          <option>Extension response</option>
+          <option>Information provided</option>
+          <option>Other</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-field"><label>Due date</label><input type="date" id="uo-due"></div>
+      <div class="form-field"><label>Linked grievance #</label><input type="text" id="uo-gnum" placeholder="Optional"></div>
+      <div class="form-field" style="flex:2"><label>Notes</label><input type="text" id="uo-notes" placeholder="Context, article reference..."></div>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-primary" onclick="addUnionOwes()">Add Item</button>
+      <button class="btn btn-sm" onclick="syncUnionOwesFromCases()" style="color:var(--purple);border-color:var(--purple);font-size:11px">↻ Sync from cases</button>
+      <button class="btn btn-sm btn-green" onclick="exportCSV('union-owes')" style="margin-left:auto">⬇ Export CSV</button>
+    </div>
+  </div>
+  <div class="card" style="padding:0;overflow:hidden">
+    <div style="display:flex;align-items:center;gap:10px;padding:14px 18px;border-bottom:1px solid var(--border);flex-wrap:wrap">
+      <div class="card-title" style="margin:0;flex:1">Outstanding Obligations</div>
+      <select id="uo-show" onchange="renderUnionOwes()" style="font-size:12px;padding:5px 8px;width:auto">
+        <option value="open">Outstanding only</option><option value="done">Completed</option><option value="">All</option>
+      </select>
+    </div>
+    <div id="union-owes-list"></div>
   </div>
 </div>
 
@@ -1207,7 +1276,7 @@ async function loadAllData(){
   const [
     {data:g},{data:s},{data:tk},{data:n},{data:m},
     {data:rec},{data:oo},{data:dl},
-    {data:cd},{data:mo},{data:rl},{data:tl}
+    {data:cd},{data:mo},{data:rl},{data:tl},{data:uo}
   ] = await Promise.all([
     sb.from('grievances').select('*').order('id',{ascending:false}),
     sb.from('stewards').select('*').order('name'),
@@ -1220,7 +1289,8 @@ async function loadAllData(){
     sb.from('case_data').select('*'),
     sb.from('mgmt_owes').select('*').order('id',{ascending:false}),
     sb.from('ref_lib').select('*').order('id',{ascending:false}),
-    sb.from('time_log').select('*').order('id',{ascending:false})
+    sb.from('time_log').select('*').order('id',{ascending:false}),
+    sb.from('union_owes').select('*').order('id',{ascending:false}).catch(()=>({data:[]}))
   ]);
 
   // Map DB snake_case to camelCase where needed
@@ -1239,6 +1309,7 @@ async function loadAllData(){
     fileName:r.file_name||r.fileName||'',
     fileData:r.file_data||r.fileData||null
   }));
+  unionOwes=(uo||[]).map(r=>({...r,gnum:r.gnum||'',notes:r.notes||'',done:r.done||false}));
   // caseData: convert array to keyed object
   caseData={};
   (cd||[]).forEach(row=>{
@@ -1307,7 +1378,7 @@ function showPanel(id,el){
   document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
   document.getElementById('panel-'+id).classList.add('active');
   el.classList.add('active');
-  const init={calendar:initCalendar,deadlines:()=>{renderDlMetrics();renderDeadlines();},tasks:()=>{renderTaskMetrics();renderTasks();},grievances:()=>{populateFilters();renderGrievances();renderGMetrics();render21DayBanner();},stewards:()=>{renderStewardMetrics();renderStewards();},'mgmt-owes':()=>{renderMgmtOwes();},reflib:()=>{renderRefLib();},time:()=>{updateTimeMetrics();renderTimeLog();},notes:()=>{document.getElementById('n-date').value=today();renderNotes();},meetings:()=>{document.getElementById('mt-date').value=today();renderMeetings();},schedule:()=>{renderRecurring();renderOneOffs();loadSchedBlocks();},update:()=>{renderStatsChart();}};
+  const init={calendar:initCalendar,deadlines:()=>{renderDlMetrics();renderDeadlines();},tasks:()=>{renderTaskMetrics();renderTasks();},grievances:()=>{populateFilters();renderGrievances();renderGMetrics();render21DayBanner();},stewards:()=>{renderStewardMetrics();renderStewards();},'mgmt-owes':()=>{renderMgmtOwes();},'union-owes':()=>{renderUnionOwes();},reflib:()=>{renderRefLib();},time:()=>{updateTimeMetrics();renderTimeLog();},notes:()=>{document.getElementById('n-date').value=today();renderNotes();},meetings:()=>{document.getElementById('mt-date').value=today();renderMeetings();},schedule:()=>{renderRecurring();renderOneOffs();loadSchedBlocks();},update:()=>{renderStatsChart();}};
   if(init[id])init[id]();
 }
 
@@ -1598,6 +1669,39 @@ function editDeadlineDate(id,source,currentDate){
 }
 
 function delDeadline(id){sbDeleteDeadline(id);renderDlMetrics();renderDeadlines();}
+
+function dismissDeadline(id,source){
+  if(source==='custom'){
+    const d=deadlines.find(x=>x.id==id);
+    if(d){d.done=true;sbSaveDeadline(d);}
+  } else {
+    // Grievance-linked: store in done map
+    const doneMap=JSON.parse(localStorage.getItem('upamm-dl-done')||'{}');
+    doneMap[id]=true;
+    localStorage.setItem('upamm-dl-done',JSON.stringify(doneMap));
+  }
+  renderDlMetrics();renderDeadlines();
+}
+
+function clearOldOverdue(){
+  const cutoff=30;
+  let count=0;
+  deadlines.forEach(d=>{
+    if(d.done)return;
+    const df=diffDays(d.date);
+    if(df!==null&&df<-cutoff){d.done=true;sbSaveDeadline(d);count++;}
+  });
+  // Also clear grievance-linked overdue ones
+  const doneMap=JSON.parse(localStorage.getItem('upamm-dl-done')||'{}');
+  getAllDeadlines().filter(d=>d.source==='grievance'&&!d.done).forEach(d=>{
+    const df=diffDays(d.date);
+    if(df!==null&&df<-cutoff){doneMap[d.id]=true;count++;}
+  });
+  localStorage.setItem('upamm-dl-done',JSON.stringify(doneMap));
+  if(count>0)alert(`Cleared ${count} overdue deadline${count!==1?'s':''} older than ${cutoff} days.`);
+  else alert('No overdue deadlines older than 30 days found.');
+  renderDlMetrics();renderDeadlines();
+}
 
 function openGrievanceFromDeadline(gnum){
   const g=grievances.find(x=>x.num===gnum);
@@ -2247,6 +2351,7 @@ const EVT_LABELS={
   'arb-hearing-held':'Arbitration hearing held',
   'mgmt-response-step1':'Step 1 response received','mgmt-response-step2':'Step 2 response received',
   'mgmt-response-step3':'Step 3 response received','mgmt-response-overdue':'Mgmt response overdue',
+  'mgmt-response-partial':'Partial response received (obligation remains open',
   'mgmt-mtg-scheduled':'Meeting scheduled by mgmt','mgmt-mtg-held':'Meeting held',
   'mgmt-extension':'Extension agreed (mgmt)','mgmt-info-received':'Info request fulfilled',
   'mgmt-denied':'Grievance denied','mgmt-response-received':'Mgmt response received',
@@ -2256,16 +2361,23 @@ const EVT_LABELS={
 };
 // owner: 'union'=purple, 'mgmt'=teal
 const EVT_OWNER={
-  'union-filed-step1':'union','union-filed-step2':'union','union-filed-step3':'union',
-  'union-filed-arb':'union','union-info-request':'union','union-extension':'union',
-  'union-contact':'union','union-withdrew':'union',
+  // Union filings → ball passes to MGMT (they must now respond)
+  'union-filed-step1':'mgmt','union-filed-step2':'mgmt','union-filed-step3':'mgmt',
+  'union-filed-arb':'mgmt','union-info-request':'mgmt',
+  // Union other actions → union still has ball
+  'union-extension':'union','union-contact':'union','union-withdrew':'union',
+  // Meetings scheduled → mgmt scheduled it, their ball to confirm/hold
   'step1-mtg-scheduled':'mgmt','step2-mtg-scheduled':'mgmt','step3-mtg-scheduled':'mgmt',
   'prearb-mtg-scheduled':'mgmt','arb-hearing-scheduled':'mgmt',
+  // Meetings held → both parties, awaiting next step
   'step1-meeting-held':'both','step2-meeting-held':'both','step3-meeting-held':'both',
   'prearb-meeting-held':'both','arb-hearing-held':'both',
-  'mgmt-response-step1':'mgmt','mgmt-response-step2':'mgmt','mgmt-response-step3':'mgmt',
-  'mgmt-response-overdue':'mgmt','mgmt-extension':'mgmt','mgmt-info-received':'mgmt',
-  'mgmt-denied':'mgmt','mgmt-response-received':'mgmt','mgmt-mtg-scheduled':'mgmt','mgmt-mtg-held':'both',
+  // Mgmt responses received → ball passes to UNION (we must now decide/act)
+  'mgmt-response-step1':'union','mgmt-response-step2':'union','mgmt-response-step3':'union',
+  'mgmt-response-overdue':'union','mgmt-extension':'both','mgmt-info-received':'both',
+  'mgmt-response-partial':'mgmt',// partial — mgmt still owes remainder
+  'mgmt-denied':'union','mgmt-response-received':'union',
+  'mgmt-mtg-scheduled':'mgmt','mgmt-mtg-held':'both',
   'resolved':'both','on-hold':'both','note':'','action':'union','member':'union','auto':''
 };
 const EVT_COLORS={
@@ -2277,7 +2389,7 @@ const EVT_COLORS={
   'step1-meeting-held':'var(--teal)','step2-meeting-held':'var(--teal)','step3-meeting-held':'var(--teal)',
   'prearb-meeting-held':'var(--teal)','arb-hearing-held':'var(--red)',
   'mgmt-response-step1':'var(--teal)','mgmt-response-step2':'var(--teal)','mgmt-response-step3':'var(--teal)',
-  'mgmt-response-overdue':'var(--red)','mgmt-response-received':'var(--teal)',
+  'mgmt-response-overdue':'var(--red)','mgmt-response-partial':'var(--amber)','mgmt-response-received':'var(--teal)',
   'mgmt-mtg-scheduled':'var(--teal)','mgmt-mtg-held':'var(--teal)',
   'mgmt-extension':'var(--amber)','mgmt-info-received':'var(--teal)','mgmt-denied':'var(--red)',
   'resolved':'#27500a','on-hold':'#888','note':'#888','action':'var(--amber)',
@@ -2294,6 +2406,7 @@ const EVT_AUTO_DEADLINES={
   'mgmt-response-step2':[{label:'Union: Step 3 appeal deadline (Art. 16K)',days:14,owner:'union',moType:null}],
   'mgmt-response-step3':[{label:'Union: arbitration notice deadline (Art. 16)',days:30,owner:'union',moType:null}],
   'mgmt-response-overdue':[],
+  'mgmt-response-partial':[],// partial keeps obligation open — no auto-clear
   'union-info-request':[{label:'Mgmt: info request response due (Art. 16 Sec. 3)',days:14,owner:'mgmt',moType:'Information request (Art. 16 Sec. 3)'}],
   'arb-hearing-held':[{label:'Arbitrator decision expected (Art. 16W)',days:30,owner:'mgmt',moType:null}],
   'mgmt-response-received':[],
@@ -2383,9 +2496,11 @@ function renderCFTimeline(){
   if(!el)return;
   const cd=getCaseData(activeCaseId);
   const g=grievances.find(x=>x.id==activeCaseId);
-  const notes=(cd.notes||[]).filter(n=>n.type!=='auto').sort((a,b)=>new Date(a.ts)-new Date(b.ts));
+  // Filter: exclude auto/status events from timeline — they are noise not Article 16 steps
+  const TIMELINE_SKIP=['auto','status','note','action','member'];
+  const notes=(cd.notes||[]).filter(n=>!TIMELINE_SKIP.includes(n.type)).sort((a,b)=>new Date(a.ts)-new Date(b.ts));
 
-  // Build timeline items from logged events
+  // Build timeline items — past events show as milestones, no overdue coloring
   const items=[];
   notes.forEach(n=>{
     const owner=EVT_OWNER[n.type]||'';
@@ -2393,20 +2508,19 @@ function renderCFTimeline(){
     const label=EVT_LABELS[n.type]||n.type;
     const displayDate=n.date||n.ts.split('T')[0];
     let sublabel='';
-    if(n.plannedDate)sublabel='Meeting: '+fmtDisplay(n.plannedDate);
-    items.push({label,date:displayDate,color,owner,sublabel,estimated:false,notes:n.notes||n.text||''});
-    // Add estimated next deadlines from this event (only last event gets next 2 estimates)
+    if(n.plannedDate)sublabel='Planned: '+fmtDisplay(n.plannedDate);
+    items.push({label,date:displayDate,color,owner,sublabel,estimated:false,past:true,notes:n.notes||n.text||''});
   });
 
-  // Add up to 2 estimated future items from the last real event
+  // Add up to 2 estimated FUTURE deadline items from the last logged event
   if(notes.length){
     const last=notes[notes.length-1];
     const autoD=EVT_AUTO_DEADLINES[last.type]||[];
     const base=last.date?parseDate(last.date):new Date(last.ts);
-    autoD.slice(0,2).forEach((d,i)=>{
+    autoD.slice(0,2).forEach(d=>{
       const dlDate=new Date(base);dlDate.setDate(dlDate.getDate()+d.days);
       const color=d.owner==='union'?'#534ab7':'#0f6e56';
-      items.push({label:d.label,date:isoDate(dlDate),color,owner:d.owner,estimated:true,notes:''});
+      items.push({label:d.label,date:isoDate(dlDate),color,owner:d.owner,estimated:true,past:false,notes:''});
     });
   }
 
@@ -2421,17 +2535,19 @@ function renderCFTimeline(){
   items.forEach((item,i)=>{
     const df=item.date?diffDays(item.date):null;
     let dateStr=item.date?fmtDisplay(item.date):'—';
+    // Only show urgency on ESTIMATED future deadlines — past events are just milestones
     let urgStr='';
-    if(!item.estimated&&df!==null){
+    if(item.estimated&&df!==null){
       if(df<0)urgStr=`<span style="color:var(--red);font-size:10px;font-weight:600"> ${Math.abs(df)}d overdue</span>`;
       else if(df===0)urgStr=`<span style="color:var(--red);font-size:10px;font-weight:600"> today</span>`;
       else if(df<=7)urgStr=`<span style="color:var(--amber);font-size:10px;font-weight:600"> in ${df}d</span>`;
+      else urgStr=`<span style="color:var(--text3);font-size:10px"> in ${df}d</span>`;
     }
     const dotStyle=item.estimated
       ?`border:2px dashed #aaa;background:var(--white)`
       :`background:${item.color}`;
     const textStyle=item.estimated?'color:var(--text3);font-style:italic':'color:var(--text)';
-    html+=`<div style="position:relative;margin-bottom:14px;${item.estimated?'opacity:0.7':''}">
+    html+=`<div style="position:relative;margin-bottom:14px;${item.estimated?'opacity:0.75':''}">
       <div style="position:absolute;left:-17px;top:3px;width:12px;height:12px;border-radius:50%;${dotStyle}"></div>
       <div style="font-size:12px;font-weight:${item.estimated?'400':'600'};${textStyle}">${escHtml(item.label)}</div>
       <div style="font-size:11px;color:var(--text3);margin-top:1px">${dateStr}${urgStr}${item.sublabel?' · '+escHtml(item.sublabel):''}${item.estimated?' · estimated':''}</div>
@@ -2500,7 +2616,36 @@ function addCaseEvent(){
       deadlines.push(newDl);sbSaveDeadline(newDl);
     }
   });
-  // Special: Step 3 response received → 30-day arb notice
+  // Auto-clear matching mgmt deadlines when a response is logged
+  const RESPONSE_CLEARS={
+    'mgmt-response-step1':['oral reply','Step 1 written','Step 1 response'],
+    'mgmt-response-step2':['Step 2 written','Step 2 response','schedule Step 2'],
+    'mgmt-response-step3':['Step 3 final','Step 3 response','schedule Step 3'],
+    'mgmt-info-received':['info request response'],
+    'mgmt-response-received':['oral reply','written response','Step 1','Step 2','Step 3'],
+  };
+  const clearKeywords=RESPONSE_CLEARS[type]||[];
+  if(clearKeywords.length&&g){
+    deadlines.forEach(d=>{
+      if(d.done)return;
+      if(d.gnum&&d.gnum!==g.num)return;
+      const nameLC=(d.name||'').toLowerCase();
+      if(clearKeywords.some(k=>nameLC.includes(k.toLowerCase()))){
+        d.done=true;d.autoClearedBy=type;d.autoClearedAt=today();
+        sbSaveDeadline(d);
+      }
+    });
+    // Also mark corresponding mgmt owes as received
+    mgmtOwes.forEach(x=>{
+      if(x.received)return;
+      if(x.gnum&&x.gnum!==g.num)return;
+      const whatLC=(x.what||'').toLowerCase();
+      if(clearKeywords.some(k=>whatLC.includes(k.toLowerCase()))){
+        x.received=true;x.receivedDate=today();x.autoReceivedBy=type;
+        sbSaveMgmtOwes(x);
+      }
+    });
+  }
   if((type==='mgmt-response-step3'||type==='mgmt-response-received')&&g&&(g.status==='Step 3-Filed'||g.status.includes('Step 3'))){
     const dl=new Date(base);dl.setDate(dl.getDate()+30);
     const newDl={id:Date.now()+1,name:'Arbitration notice deadline — Grievance #'+g.num,date:isoDate(dl),cat:'Grievance step',gnum:g.num,notes:'Auto-created: Step 3 response received',done:false};
@@ -2541,12 +2686,270 @@ function delCaseNote(noteId){
   sbSaveCaseData(activeCaseId);renderCFActivity();
 }
 
+// ── EDIT LOGGED EVENT ─────────────────────────────────────────────────
+function editCaseEvent(noteId){
+  if(!activeCaseId)return;
+  const cd=getCaseData(activeCaseId);
+  const n=cd.notes.find(x=>x.id===noteId);if(!n)return;
+  const existing=document.getElementById('edit-evt-popup-'+noteId);
+  if(existing){existing.remove();return;}
+  const popup=document.createElement('div');
+  popup.id='edit-evt-popup-'+noteId;
+  popup.style.cssText='background:#f9f8f6;border:1px solid var(--border);border-radius:var(--radius);padding:12px;margin-top:6px';
+  popup.innerHTML=`
+    <div class="form-row" style="margin-bottom:8px">
+      <div class="form-field" style="max-width:160px"><label>Date</label><input type="date" id="ee-date-${noteId}" value="${n.date||''}"></div>
+      <div class="form-field" style="flex:3"><label>Notes</label><input type="text" id="ee-notes-${noteId}" value="${(n.text||'').replace(/^[^:]+:\s*/,'').replace(/"/g,'&quot;')}"></div>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-primary btn-sm" onclick="saveCaseEventEdit(${noteId})">Save</button>
+      <button class="btn btn-sm" onclick="document.getElementById('edit-evt-popup-${noteId}').remove()">Cancel</button>
+    </div>`;
+  // Insert after the activity item
+  const itemEl=document.getElementById('cf-evt-item-'+noteId);
+  if(itemEl)itemEl.after(popup);
+  else{
+    const _m=document.getElementById('cf-modal-overlay');
+    const list=(_m&&_m.querySelector('#cf-activity-list'))||document.getElementById('cf-activity-list');
+    if(list)list.prepend(popup);
+  }
+}
+
+function saveCaseEventEdit(noteId){
+  if(!activeCaseId)return;
+  const cd=getCaseData(activeCaseId);
+  const n=cd.notes.find(x=>x.id===noteId);if(!n)return;
+  const newDate=document.getElementById('ee-date-'+noteId)?.value;
+  const newNotes=document.getElementById('ee-notes-'+noteId)?.value.trim();
+  if(newDate)n.date=newDate;
+  if(newNotes!==undefined){
+    // Rebuild text preserving the event label prefix
+    const label=EVT_LABELS[n.type]||n.type;
+    n.text=newNotes?label+': '+newNotes:label;
+  }
+  document.getElementById('edit-evt-popup-'+noteId)?.remove();
+  sbSaveCaseData(activeCaseId);renderCFActivity();renderCFTimeline();renderCFHealthBanner();
+}
+
+// ── CASE TASKS (FIX-09) ───────────────────────────────────────────────
+function showCaseTaskForm(){
+  const _m=document.getElementById('cf-modal-overlay');const inModal=_m&&_m.style.display!=='none';
+  const form=inModal?_m.querySelector('#cf-task-form'):document.getElementById('cf-task-form');
+  if(form)form.style.display=form.style.display==='none'?'block':'none';
+}
+
+function addCaseTask(){
+  if(!activeCaseId)return;
+  const _m=document.getElementById('cf-modal-overlay');const inModal=_m&&_m.style.display!=='none';
+  const getF=id=>(inModal&&_m.querySelector('#'+id))||document.getElementById(id);
+  const title=getF('cf-tk-title')?.value.trim();
+  if(!title)return alert('Task description required');
+  const g=grievances.find(x=>x.id==activeCaseId);
+  const task={id:Date.now(),title,
+    pri:getF('cf-tk-pri')?.value||'med',
+    due:getF('cf-tk-due')?.value||'',
+    gnum:g?g.num:'',cat:'Grievance',rec:'',assignee:'me',
+    done:false,created:today()};
+  tasks.unshift(task);
+  sbSaveTask(task);
+  renderCaseTasks();renderTaskMetrics();
+  const form=getF('cf-task-form');if(form)form.style.display='none';
+  const titleEl=getF('cf-tk-title');if(titleEl)titleEl.value='';
+  const dueEl=getF('cf-tk-due');if(dueEl)dueEl.value='';
+}
+
+function renderCaseTasks(){
+  if(!activeCaseId)return;
+  const g=grievances.find(x=>x.id==activeCaseId);if(!g)return;
+  const _m=document.getElementById('cf-modal-overlay');const inModal=_m&&_m.style.display!=='none';
+  const el=inModal?_m.querySelector('#cf-tasks-list'):document.getElementById('cf-tasks-list');
+  if(!el)return;
+  const linked=tasks.filter(t=>t.gnum&&t.gnum.trim()===g.num.trim());
+  if(!linked.length){el.innerHTML='<p style="font-size:12px;color:#aaa">No tasks linked to this case.</p>';return;}
+  const sorted=[...linked].sort((a,b)=>{if(a.done!==b.done)return a.done?1:-1;const p={high:0,med:1,low:2};return p[a.pri]-p[b.pri];});
+  el.innerHTML=sorted.map(t=>{
+    const df=t.due?diffDays(t.due):null;
+    const dueCls=df!==null&&df<0?'color:var(--red)':df!==null&&df<=7?'color:var(--amber)':'color:var(--text3)';
+    const dueStr=t.due?`<span class="${dueCls}" style="font-size:11px">${fmtDisplay(t.due)}</span>`:'';
+    const priColor=t.pri==='high'?'var(--red)':t.pri==='med'?'var(--amber)':'#aaa';
+    return`<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid #f0ede8">
+      <input type="checkbox" ${t.done?'checked':''} style="accent-color:var(--navy);flex-shrink:0" onchange="toggleCaseTaskDone(${t.id})">
+      <span style="width:6px;height:6px;border-radius:50%;background:${priColor};flex-shrink:0"></span>
+      <span style="flex:1;font-size:13px;${t.done?'text-decoration:line-through;color:var(--text3)':''}"">${escHtml(t.title)}</span>
+      ${dueStr}
+      <button class="btn btn-sm btn-danger" style="padding:2px 6px;font-size:11px" onclick="deleteCaseTask(${t.id})">✕</button>
+    </div>`;
+  }).join('');
+}
+
+function toggleCaseTaskDone(id){
+  const t=tasks.find(x=>x.id==id);if(!t)return;
+  t.done=!t.done;sbSaveTask(t);renderCaseTasks();renderTaskMetrics();
+}
+
+function deleteCaseTask(id){
+  sbDeleteTask(id);renderCaseTasks();renderTaskMetrics();
+}
+
+// ── FIX-04: SYNC MGMT OWES FROM CASES ────────────────────────────────
+function syncMgmtOwesFromCases(){
+  let added=0;
+  grievances.forEach(g=>{
+    if(g.closed==='Yes')return;
+    const cd=getCaseData(g.id);
+    (cd.notes||[]).forEach(n=>{
+      const autoD=EVT_AUTO_DEADLINES[n.type]||[];
+      autoD.filter(d=>d.owner==='mgmt'&&d.moType).forEach(d=>{
+        const base=n.date?parseDate(n.date):new Date(n.ts);
+        if(!base)return;
+        const dlDate=new Date(base);dlDate.setDate(dlDate.getDate()+d.days);
+        const dlStr=isoDate(dlDate);
+        const label=d.label+' — Grievance #'+g.num;
+        // Check if already exists
+        const exists=mgmtOwes.find(x=>x.gnum===g.num&&x.what===label);
+        if(!exists){
+          const item={id:Date.now()+Math.random(),what:label,type:d.moType,due:dlStr,
+            gnum:g.num,contact:'',pri:'high',notes:'Synced from case event log',
+            received:false,receivedDate:'',created:today()};
+          mgmtOwes.unshift(item);
+          sbSaveMgmtOwes(item);
+          added++;
+        }
+      });
+    });
+  });
+  alert(added>0?`Added ${added} missing item${added!==1?'s':''} from case event logs.`:'All case obligations already tracked — nothing new to add.');
+  renderMgmtOwes();
+}
+
+// ── FIX-07: SYNC DEADLINES FROM CASES ────────────────────────────────
+function syncDeadlinesFromCases(){
+  let added=0;
+  grievances.forEach(g=>{
+    if(g.closed==='Yes')return;
+    const cd=getCaseData(g.id);
+    (cd.notes||[]).forEach(n=>{
+      const autoD=EVT_AUTO_DEADLINES[n.type]||[];
+      autoD.filter(d=>d.owner==='union').forEach(d=>{
+        const base=n.date?parseDate(n.date):new Date(n.ts);
+        if(!base)return;
+        const dlDate=new Date(base);dlDate.setDate(dlDate.getDate()+d.days);
+        const dlStr=isoDate(dlDate);
+        const label=d.label+' — Grievance #'+g.num;
+        const exists=deadlines.find(x=>x.gnum===g.num&&x.name===label);
+        if(!exists){
+          const item={id:Date.now()+Math.random(),name:label,date:dlStr,
+            cat:'Grievance step',gnum:g.num,notes:'Synced from case event log',done:false};
+          deadlines.push(item);
+          sbSaveDeadline(item);
+          added++;
+        }
+      });
+    });
+  });
+  alert(added>0?`Added ${added} missing deadline${added!==1?'s':''} from case event logs.`:'All case deadlines already tracked — nothing new to add.');
+  renderDeadlines();renderDlMetrics();
+}
+
+// ── FIX-06: UNION OWES MGMT ──────────────────────────────────────────
+let unionOwes=[];
+
+async function sbSaveUnionOwes(x){await sbUpsert('union_owes',{id:x.id,what:x.what,type:x.type||null,due:x.due||null,gnum:x.gnum||null,notes:x.notes||null,done:x.done||false,created:x.created||today(),last_edited_by:currentUserName(),last_edited_at:new Date().toISOString()});}
+async function sbDeleteUnionOwes(id){unionOwes=unionOwes.filter(x=>x.id!=id);await sbDelete('union_owes',id,'Union owes deleted');}
+
+function addUnionOwes(){
+  const what=document.getElementById('uo-what').value.trim();
+  if(!what)return alert('Description required');
+  const item={id:Date.now(),what,type:document.getElementById('uo-type').value,
+    due:document.getElementById('uo-due').value,
+    gnum:document.getElementById('uo-gnum').value.trim(),
+    notes:document.getElementById('uo-notes').value.trim(),
+    done:false,created:today()};
+  unionOwes.unshift(item);
+  sbSaveUnionOwes(item);renderUnionOwes();
+  ['uo-what','uo-due','uo-gnum','uo-notes'].forEach(id=>document.getElementById(id).value='');
+}
+
+function renderUnionOwes(){
+  const fs=document.getElementById('uo-show')?.value||'open';
+  let list=unionOwes.filter(x=>fs==='open'?!x.done:fs==='done'?x.done:true);
+  list.sort((a,b)=>{if(a.done!==b.done)return a.done?1:-1;const da=a.due||'9999',db=b.due||'9999';return da>db?1:da<db?-1:0;});
+  // Metrics
+  const open=unionOwes.filter(x=>!x.done).length;
+  const overdue=unionOwes.filter(x=>!x.done&&x.due&&(diffDays(x.due)||0)<0).length;
+  const soon=unionOwes.filter(x=>!x.done&&x.due&&(diffDays(x.due)||0)>=0&&(diffDays(x.due)||0)<=7).length;
+  const metricsEl=document.getElementById('uo-metrics');
+  if(metricsEl)metricsEl.innerHTML=`
+    <div class="metric"><div class="metric-val">${open}</div><div class="metric-label">Outstanding</div></div>
+    <div class="metric"><div class="metric-val" style="color:var(--red)">${overdue}</div><div class="metric-label">Overdue</div></div>
+    <div class="metric"><div class="metric-val" style="color:var(--amber)">${soon}</div><div class="metric-label">Due ≤7 days</div></div>
+    <div class="metric"><div class="metric-val">${unionOwes.filter(x=>x.done).length}</div><div class="metric-label">Completed</div></div>`;
+  const el=document.getElementById('union-owes-list');
+  if(!el)return;
+  if(!list.length){el.innerHTML='<p style="font-size:13px;color:#aaa;padding:14px">No items found.</p>';return;}
+  el.innerHTML=list.map(x=>{
+    const df=x.due?diffDays(x.due):null;
+    let dueHtml='—',dueCls='';
+    if(x.due){
+      if(x.done)dueHtml='<span style="color:var(--teal)">✓ Done</span>';
+      else if(df<0){dueCls='dl-red';dueHtml=Math.abs(df)+'d overdue ('+fmtDisplay(x.due)+')';}
+      else if(df===0){dueCls='dl-red';dueHtml='Due TODAY';}
+      else if(df<=7){dueCls='dl-amber';dueHtml='Due in '+df+'d ('+fmtDisplay(x.due)+')';}
+      else dueHtml=fmtDisplay(x.due);
+    }
+    const gnumLink=x.gnum?` · <a href="#" onclick="openGrievanceFromDeadline('${escHtml(x.gnum)}');return false;" style="color:var(--navy);font-weight:600">#${escHtml(x.gnum)}</a>`:'';
+    return`<div class="dl-item" style="${x.done?'opacity:0.5':''}">
+      <div style="min-width:8px;width:8px;height:8px;border-radius:50%;background:#534ab7;flex-shrink:0"></div>
+      <div class="dl-body">
+        <div class="dl-name">${escHtml(x.what)}${x.done?' <span style="color:var(--teal);font-size:11px">✓ Done</span>':''}</div>
+        <div class="dl-sub">${x.type||''}${gnumLink}${x.notes?' · '+x.notes:''}</div>
+      </div>
+      <div class="dl-date ${dueCls}">${dueHtml}</div>
+      <div style="display:flex;gap:4px;flex-shrink:0">
+        ${!x.done?`<button class="btn btn-sm btn-green" style="font-size:11px" onclick="markUnionOwesDone(${x.id})">✓ Done</button>`:''}
+        <button class="btn btn-sm btn-danger" onclick="delUnionOwes(${x.id})">✕</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function markUnionOwesDone(id){
+  const x=unionOwes.find(i=>i.id===id);if(!x)return;
+  x.done=true;sbSaveUnionOwes(x);renderUnionOwes();
+}
+function delUnionOwes(id){if(!confirm('Remove?'))return;sbDeleteUnionOwes(id);renderUnionOwes();}
+
+function syncUnionOwesFromCases(){
+  let added=0;
+  grievances.forEach(g=>{
+    if(g.closed==='Yes')return;
+    const cd=getCaseData(g.id);
+    (cd.notes||[]).forEach(n=>{
+      const autoD=EVT_AUTO_DEADLINES[n.type]||[];
+      autoD.filter(d=>d.owner==='union').forEach(d=>{
+        const base=n.date?parseDate(n.date):new Date(n.ts);
+        if(!base)return;
+        const dlDate=new Date(base);dlDate.setDate(dlDate.getDate()+d.days);
+        const label=d.label+' — Grievance #'+g.num;
+        const exists=unionOwes.find(x=>x.gnum===g.num&&x.what===label);
+        if(!exists){
+          const item={id:Date.now()+Math.random(),what:label,type:'Contractual deadline',
+            due:isoDate(dlDate),gnum:g.num,notes:'Synced from case event log',done:false,created:today()};
+          unionOwes.unshift(item);sbSaveUnionOwes(item);added++;
+        }
+      });
+    });
+  });
+  alert(added>0?`Added ${added} missing union obligation${added!==1?'s':''}.`:'All union obligations already tracked.');
+  renderUnionOwes();
+}
+
 function renderCFActivity(){
   if(!activeCaseId)return;
   const cd=getCaseData(activeCaseId);
-  // Always re-render timeline + health banner too
   renderCFTimeline();
   renderCFHealthBanner();
+  renderCaseTasks();
   const modal=document.getElementById('cf-modal-overlay');const el=(modal&&modal.querySelector('#cf-activity-list'))||document.getElementById('cf-activity-list');
   if(!el)return;
   if(!cd.notes.length){el.innerHTML='<div class="card" style="color:#aaa;font-size:13px;text-align:center;padding:20px">No events logged yet — use the form to record the first event.</div>';return;}
@@ -2558,14 +2961,14 @@ function renderCFActivity(){
     const col=EVT_COLORS[n.type]||'#888';
     const lbl=EVT_LABELS[n.type]||n.type;
     const isAuto=n.type==='auto';
-    return`<div class="activity-item">
+    return`<div class="activity-item" id="cf-evt-item-${n.id}">
       <div class="activity-dot" style="background:${col}"></div>
       <div class="activity-body">
         <div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap">
           <span style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:${col}">${lbl}</span>
           ${evtDate}
           <span class="activity-meta">${ds}</span>
-          ${!isAuto?`<button class="btn btn-sm btn-danger" style="margin-left:auto;padding:2px 6px;font-size:11px" onclick="delCaseNote(${n.id})">✕</button>`:''}
+          ${!isAuto?`<button class="btn btn-sm" style="margin-left:auto;padding:2px 6px;font-size:11px" onclick="editCaseEvent(${n.id})">✏</button><button class="btn btn-sm btn-danger" style="padding:2px 6px;font-size:11px" onclick="delCaseNote(${n.id})">✕</button>`:''}
         </div>
         <div class="activity-text">${escHtml(n.text)}</div>
         ${n.url?`<div style="margin-top:4px"><a href="${escHtml(n.url)}" target="_blank" class="btn btn-sm btn-green" style="font-size:11px">📂 ${n.docLabel?escHtml(n.docLabel):'View document'}</a></div>`:''}
@@ -2814,6 +3217,7 @@ function openCaseFile(id){
                     <option value="mgmt-response-step1">Step 1 response received from mgmt</option>
                     <option value="mgmt-response-step2">Step 2 response received from mgmt</option>
                     <option value="mgmt-response-step3">Step 3 response received from mgmt</option>
+                    <option value="mgmt-response-partial">Partial response received (obligation remains open)</option>
                     <option value="mgmt-response-overdue">Mgmt response overdue / not received</option>
                     <option value="mgmt-extension">Extension agreed (mgmt requested)</option>
                     <option value="mgmt-info-received">Information request fulfilled</option>
@@ -2852,6 +3256,26 @@ function openCaseFile(id){
           </div>
           <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin:14px 0 8px">Event history</div>
           <div id="cf-activity-list"></div>
+          <div style="margin-top:18px;border-top:1px solid var(--border);padding-top:14px">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+              <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;flex:1">Case tasks</div>
+              <button class="btn btn-sm btn-primary" style="font-size:11px" onclick="showCaseTaskForm()">+ Add task</button>
+            </div>
+            <div id="cf-task-form" style="display:none;background:#f9f8f6;border:1px solid var(--border);border-radius:var(--radius);padding:12px;margin-bottom:10px">
+              <div class="form-row">
+                <div class="form-field" style="flex:3"><label>Task</label><input type="text" id="cf-tk-title" placeholder="What needs to be done?" onkeydown="if(event.key===\'Enter\')addCaseTask()"></div>
+                <div class="form-field" style="max-width:100px"><label>Priority</label>
+                  <select id="cf-tk-pri"><option value="high">High</option><option value="med" selected>Medium</option><option value="low">Low</option></select>
+                </div>
+                <div class="form-field" style="max-width:140px"><label>Due date</label><input type="date" id="cf-tk-due"></div>
+              </div>
+              <div style="display:flex;gap:8px">
+                <button class="btn btn-primary btn-sm" onclick="addCaseTask()">Add</button>
+                <button class="btn btn-sm" onclick="document.getElementById(\'cf-task-form\').style.display=\'none\'">Cancel</button>
+              </div>
+            </div>
+            <div id="cf-tasks-list"></div>
+          </div>
         </div>
       </div>`,
         inforeq:()=>`
@@ -4242,7 +4666,7 @@ function renderMgmtOwes(){
       <div style="min-width:8px;width:8px;height:8px;border-radius:50%;background:${x.pri==='high'?'var(--red)':x.pri==='med'?'var(--amber)':'#aaa'};flex-shrink:0"></div>
       <div class="dl-body">
         <div class="dl-name">${escHtml(x.what)}${x.received?' <span style="color:var(--teal);font-size:11px">✓ Received</span>':''}</div>
-        <div class="dl-sub">${x.type}${x.gnum?' · Grievance #'+x.gnum:''}${x.contact?' · '+x.contact:''}${x.notes?' · '+x.notes:''}</div>
+        <div class="dl-sub">${x.type}${x.gnum?` · <a href="#" onclick="openGrievanceFromDeadline('${escHtml(x.gnum)}');return false;" style="color:var(--navy);font-weight:600">#${escHtml(x.gnum)}</a>`:''}${x.contact?' · '+x.contact:''}${x.notes?' · '+x.notes:''}</div>
       </div>
       <div class="dl-date ${dueCls}">${dueHtml}</div>
       <div style="display:flex;gap:4px;flex-shrink:0">
