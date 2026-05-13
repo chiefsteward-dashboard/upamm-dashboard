@@ -1276,7 +1276,7 @@ async function loadAllData(){
   const [
     {data:g},{data:s},{data:tk},{data:n},{data:m},
     {data:rec},{data:oo},{data:dl},
-    {data:cd},{data:mo},{data:rl},{data:tl},{data:uo}
+    {data:cd},{data:mo},{data:rl},{data:tl}
   ] = await Promise.all([
     sb.from('grievances').select('*').order('id',{ascending:false}),
     sb.from('stewards').select('*').order('name'),
@@ -1289,9 +1289,11 @@ async function loadAllData(){
     sb.from('case_data').select('*'),
     sb.from('mgmt_owes').select('*').order('id',{ascending:false}),
     sb.from('ref_lib').select('*').order('id',{ascending:false}),
-    sb.from('time_log').select('*').order('id',{ascending:false}),
-    sb.from('union_owes').select('*').order('id',{ascending:false}).catch(()=>({data:[]}))
+    sb.from('time_log').select('*').order('id',{ascending:false})
   ]);
+  // union_owes loaded separately — table may not exist yet if SQL not run
+  let uo=[];
+  try{const r=await sb.from('union_owes').select('*').order('id',{ascending:false});uo=r.data||[];}catch(e){console.warn('union_owes table not found — run SQL to create it');}
 
   // Map DB snake_case to camelCase where needed
   grievances=(g||[]).map(mapGrievance);
