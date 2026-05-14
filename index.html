@@ -779,10 +779,15 @@ tr:hover td{background:#faf9f7}
                     <option value="mgmt-info-received">Information request fulfilled</option>
                     <option value="mgmt-denied">Grievance denied</option>
                   </optgroup>
-                  <optgroup label="Communications / Informal">
+                  <optgroup label="Communications — With Management">
+                    <option value="union-contact">Union contacted management</option>
+                    <option value="touchbase-discussed">Discussed at mgmt touchbase (standing mtg)</option>
+                    <option value="ad-hoc-mgmt-mtg">Ad hoc meeting with management</option>
+                    <option value="unit-pre-grievance-mtg">Unit / pre-grievance meeting</option>
+                  </optgroup>
+                  <optgroup label="Communications — Member &amp; Internal">
                     <option value="member-followup">Member follow-up</option>
                     <option value="member-meeting">Member meeting held</option>
-                    <option value="touchbase-discussed">Discussed at mgmt touchbase</option>
                     <option value="officer-discussed">Discussed at officer meeting</option>
                     <option value="steward-update">Steward update / handoff</option>
                   </optgroup>
@@ -800,6 +805,24 @@ tr:hover td{background:#faf9f7}
             <!-- Meeting scheduled: second date field for planned meeting date -->
             <div id="cf-mtg-sched-row" style="display:none" class="form-row">
               <div class="form-field"><label id="cf-mtg-planned-label">Meeting date</label><input type="date" id="cf-mtg-planned-date"></div>
+            </div>
+            <!-- Communication event: method + who fields -->
+            <div id="cf-comm-row" style="display:none" class="form-row">
+              <div class="form-field" style="flex:1"><label>Method</label>
+                <select id="cf-comm-method">
+                  <option value="">— Select —</option>
+                  <option>In-person</option>
+                  <option>Phone</option>
+                  <option>Zoom / video</option>
+                  <option>Email</option>
+                  <option>Written letter</option>
+                  <option>Text message</option>
+                  <option>Other (see notes)</option>
+                </select>
+              </div>
+              <div class="form-field" style="flex:2"><label>Who</label>
+                <input type="text" id="cf-comm-who" list="contacts-datalist" placeholder="Name / role...">
+              </div>
             </div>
             <div class="form-row">
               <div class="form-field" style="flex:3"><label>Notes</label><input type="text" id="cf-evt-notes" placeholder="Details, attendees, key points..." onkeydown="if(event.key==='Enter')addCaseEvent()"></div>
@@ -2509,7 +2532,9 @@ const EVT_LABELS={
   // New communication / informal event types
   'member-followup':'Member follow-up','member-meeting':'Member meeting held',
   'touchbase-discussed':'Discussed at mgmt touchbase','officer-discussed':'Discussed at officer meeting',
-  'steward-update':'Steward update / handoff'
+  'steward-update':'Steward update / handoff',
+  'ad-hoc-mgmt-mtg':'Ad hoc meeting with management',
+  'unit-pre-grievance-mtg':'Unit / pre-grievance meeting'
 };
 // owner: 'union'=purple, 'mgmt'=teal
 const EVT_OWNER={
@@ -2533,7 +2558,8 @@ const EVT_OWNER={
   'resolved':'both','on-hold':'both','note':'','action':'union','member':'union','auto':'',
   'mgmt-ack-receipt':'both',// acknowledged — no ball movement
   // Communication / informal — ball doesn't move
-  'member-followup':'','member-meeting':'','touchbase-discussed':'','officer-discussed':'','steward-update':''
+  'member-followup':'','member-meeting':'','touchbase-discussed':'','officer-discussed':'','steward-update':'',
+  'ad-hoc-mgmt-mtg':'','unit-pre-grievance-mtg':''
 };
 const EVT_COLORS={
   'union-filed-step1':'#534ab7','union-filed-step2':'#534ab7','union-filed-step3':'#534ab7',
@@ -2551,7 +2577,8 @@ const EVT_COLORS={
   'member':'#4285f4','auto':'#ccc','step3-filed':'#534ab7',
   'mgmt-ack-receipt':'var(--teal)',
   'member-followup':'#4285f4','member-meeting':'#4285f4',
-  'touchbase-discussed':'var(--teal)','officer-discussed':'var(--purple)','steward-update':'var(--amber)'
+  'touchbase-discussed':'var(--teal)','officer-discussed':'var(--purple)','steward-update':'var(--amber)',
+  'ad-hoc-mgmt-mtg':'var(--teal)','unit-pre-grievance-mtg':'var(--teal)'
 };
 const EVT_AUTO_DEADLINES={
   'union-filed-step1':[{label:'Mgmt: oral reply due (Art. 16H)',days:7,owner:'mgmt',moType:'Step response due'}],
@@ -2573,6 +2600,7 @@ const EVT_AUTO_DEADLINES={
   'step1-mtg-scheduled':[],'step2-mtg-scheduled':[],'step3-mtg-scheduled':[],
   'prearb-mtg-scheduled':[],'arb-hearing-scheduled':[],'prearb-meeting-held':[],'step3-filed':[],
   'member-followup':[],'member-meeting':[],'touchbase-discussed':[],'officer-discussed':[],'steward-update':[],
+  'ad-hoc-mgmt-mtg':[],'unit-pre-grievance-mtg':[],
   'mgmt-ack-receipt':[]
 };
 
@@ -2759,7 +2787,7 @@ function renderCFHealthBanner(){
 // ── TIMELINE VIEW STATE ───────────────────────────────────────────────
 let timelineView='art16'; // 'art16' | 'all' | 'comms'
 
-const COMMS_TYPES=['member-followup','member-meeting','touchbase-discussed','officer-discussed','steward-update','note','member','action'];
+const COMMS_TYPES=['member-followup','member-meeting','touchbase-discussed','officer-discussed','steward-update','note','member','action','ad-hoc-mgmt-mtg','unit-pre-grievance-mtg','union-contact'];
 const ART16_TYPES=['union-filed-step1','union-filed-step2','union-filed-step3','union-filed-arb','union-info-request','union-extension','union-withdrew',
   'step1-mtg-scheduled','step2-mtg-scheduled','step3-mtg-scheduled','prearb-mtg-scheduled','arb-hearing-scheduled',
   'step1-meeting-held','step2-meeting-held','step3-meeting-held','prearb-meeting-held','arb-hearing-held',
@@ -2911,6 +2939,14 @@ function updateEventForm(){
       }
     }
   }
+  // Show/hide comm row (method + who) for communication event types
+  const COMM_TYPES=['union-contact','touchbase-discussed','ad-hoc-mgmt-mtg','unit-pre-grievance-mtg',
+    'member-followup','member-meeting','officer-discussed','steward-update'];
+  const isComm=COMM_TYPES.includes(type);
+  const commRow=getU('cf-comm-row');
+  if(commRow)commRow.style.display=isComm?'flex':'none';
+  // Populate contacts datalist whenever form is shown
+  buildContactDatalist('contacts-datalist');
   // Show auto-deadline preview
   const preview=getU('cf-evt-preview');
   const dateVal=(getU('cf-evt-date')?.value)||'';
@@ -2937,11 +2973,18 @@ function addCaseEvent(){
   const extNewDate=document.getElementById('cf-ext-newdate')?.value||'';
   const evtUrl=getF('cf-evt-url')?.value.trim()||'';
   const evtDocLabel=getF('cf-evt-doclabel')?.value.trim()||'';
+  const commMethod=getF('cf-comm-method')?.value||'';
+  const commWho=getF('cf-comm-who')?.value.trim()||'';
   const g=grievances.find(x=>x.id==activeCaseId);
   const cd=getCaseData(activeCaseId);
-  // Build event text
+  // Build event text — comm events get structured format
   let text=EVT_LABELS[type]||type;
   if(plannedDate)text+=' (planned '+fmtDisplay(plannedDate)+')';
+  // Structured comm details
+  const commParts=[];
+  if(commMethod)commParts.push(commMethod);
+  if(commWho)commParts.push('with '+commWho);
+  if(commParts.length)text+=' — '+commParts.join(', ');
   if(notes)text+=': '+notes;
   if(extReason)text+=' | Extension reason: '+extReason;
   if(extNewDate)text+=' | New deadline: '+fmtDisplay(extNewDate);
@@ -3025,6 +3068,8 @@ function addCaseEvent(){
   sbSaveCaseData(activeCaseId);sbSaveGrievance(grievances.find(x=>x.id==activeCaseId)||{});
   renderCFActivity();renderGrievances();renderGMetrics();
   const _en=getF('cf-evt-notes');if(_en)_en.value='';
+  const _ec=getF('cf-comm-method');if(_ec)_ec.value='';
+  const _ew=getF('cf-comm-who');if(_ew)_ew.value='';
   const _ed=getF('cf-evt-date');if(_ed)_ed.value=today();
   const _ep=getF('cf-evt-preview');if(_ep)_ep.style.display='none';
   const _eu=getF('cf-evt-url');if(_eu)_eu.value='';
@@ -3769,10 +3814,15 @@ function openCaseFile(id){
                     <option value="mgmt-info-received">Information request fulfilled</option>
                     <option value="mgmt-denied">Grievance denied</option>
                   </optgroup>
-                  <optgroup label="Communications / Informal">
+                  <optgroup label="Communications — With Management">
+                    <option value="union-contact">Union contacted management</option>
+                    <option value="touchbase-discussed">Discussed at mgmt touchbase (standing mtg)</option>
+                    <option value="ad-hoc-mgmt-mtg">Ad hoc meeting with management</option>
+                    <option value="unit-pre-grievance-mtg">Unit / pre-grievance meeting</option>
+                  </optgroup>
+                  <optgroup label="Communications — Member &amp; Internal">
                     <option value="member-followup">Member follow-up</option>
                     <option value="member-meeting">Member meeting held</option>
-                    <option value="touchbase-discussed">Discussed at mgmt touchbase</option>
                     <option value="officer-discussed">Discussed at officer meeting</option>
                     <option value="steward-update">Steward update / handoff</option>
                   </optgroup>
@@ -3789,6 +3839,23 @@ function openCaseFile(id){
             </div>
             <div id="cf-mtg-sched-row" style="display:none" class="form-row">
               <div class="form-field"><label id="cf-mtg-planned-label">Meeting date</label><input type="date" id="cf-mtg-planned-date"></div>
+            </div>
+            <div id="cf-comm-row" style="display:none" class="form-row">
+              <div class="form-field" style="flex:1"><label>Method</label>
+                <select id="cf-comm-method">
+                  <option value="">— Select —</option>
+                  <option>In-person</option>
+                  <option>Phone</option>
+                  <option>Zoom / video</option>
+                  <option>Email</option>
+                  <option>Written letter</option>
+                  <option>Text message</option>
+                  <option>Other (see notes)</option>
+                </select>
+              </div>
+              <div class="form-field" style="flex:2"><label>Who</label>
+                <input type="text" id="cf-comm-who" list="contacts-datalist" placeholder="Name / role...">
+              </div>
             </div>
             <div class="form-row">
               <div class="form-field" style="flex:3"><label>Notes</label><input type="text" id="cf-evt-notes" placeholder="Details, attendees, key points..." onkeydown="if(event.key===\'Enter\')addCaseEvent()"></div>
@@ -5887,7 +5954,7 @@ function initAppUI(){
   const dd=document.getElementById('dl-date');if(dd)dd.value=today();
   const td=document.getElementById('tk-due');if(td)td.value=today();
   populateFilters();renderGrievances();renderGMetrics();render21DayBanner();
-  initCalendar();updateBackupStatus();
+  initCalendar();updateBackupStatus();buildContactDatalist('contacts-datalist');
 }
 
 // ── GOOGLE TOKEN HELPER ───────────────────────────────────────────────
