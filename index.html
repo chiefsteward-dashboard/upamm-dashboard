@@ -296,6 +296,9 @@ tr:hover td{background:#faf9f7}
         <option>Grievance step</option><option>Arbitration</option><option>MOU / contract</option>
         <option>Filing</option><option>Administrative</option><option>Other</option>
         <option value="__grievance">From grievance log</option>
+        <option value="Information request (Art. 16 Sec. 3)">Information requests</option>
+        <option value="__union">Union deadlines (we must act)</option>
+        <option value="__mgmt">Mgmt deadlines (they must act)</option>
       </select>
       <select id="dl-show" onchange="renderDeadlines()" style="font-size:12px;padding:5px 8px;width:auto">
         <option value="">All</option><option value="open">Upcoming only</option><option value="past">Past only</option>
@@ -1642,6 +1645,23 @@ function getAllDeadlines(){
     const alreadyCovered=all.some(d=>d.gnum===g.num&&d.date===g.deadline&&!d.done);
     if(!alreadyCovered)all.push({id:'g-'+g.id,name:'Grievance '+g.num+': '+g.brief,date:g.deadline,cat:'Grievance step',gnum:g.num,notes:g.status,done:false,source:'grievance'});
   });
+  // Also pull calculated deadlines from case event logs (same source as health banner)
+  // This ensures Deadlines panel matches the health banner for all open cases
+  const doneMap=JSON.parse(localStorage.getItem('upamm-dl-done')||'{}');
+  grievances.filter(g=>g.closed==='No').forEach(g=>{
+    const calc=calcAllOutstandingDeadlines(g.id);
+    calc.forEach(d=>{
+      const key='calc-'+g.id+'-'+d.date+'-'+d.label.substring(0,20);
+      // Only add if not already covered by a saved custom deadline on same case+date
+      const alreadyCovered=all.some(x=>x.gnum===g.num&&x.date===d.date&&!x.done);
+      if(!alreadyCovered){
+        const cat=d.track==='Info Request'?'Information request (Art. 16 Sec. 3)':'Grievance step';
+        all.push({id:key,name:d.label+' — Grievance #'+g.num,date:d.date,
+          cat,gnum:g.num,notes:d.owner==='union'?'Union action required':'Mgmt action required',
+          done:!!doneMap[key],source:'calculated',owner:d.owner,track:d.track});
+      }
+    });
+  });
   return all;
 }
 
@@ -1662,6 +1682,8 @@ function renderDeadlines(){
   const fs=document.getElementById('dl-show').value;
   let all=getAllDeadlines();
   if(fc==='__grievance')all=all.filter(d=>d.source==='grievance');
+  else if(fc==='__union')all=all.filter(d=>d.owner==='union'||d.source==='grievance');
+  else if(fc==='__mgmt')all=all.filter(d=>d.owner==='mgmt');
   else if(fc)all=all.filter(d=>d.cat===fc);
   if(fs==='open')all=all.filter(d=>!d.done&&(diffDays(d.date)||0)>=0);
   else if(fs==='past')all=all.filter(d=>d.done||(diffDays(d.date)||0)<0);
@@ -2619,6 +2641,40 @@ function renderCFHealthBanner(){
     }).join('');
   }
 
+  // What's Next — derive from ball-in-court + last event + status
+  const whatNext=(()=>{
+    if(!g)return null;
+    const lastEvt=realNotes.length?[...realNotes].sort((a,b)=>new Date(b.ts)-new Date(a.ts))[0]:null;
+    const lastType=lastEvt?.type||'';
+    const status=g.status||'';
+    // Map last event to next recommended action
+    const NEXT_ACTION={
+      'union-filed-step1':'Await mgmt oral reply (7d). If not received, follow up in writing.',
+      'step1-meeting-held':'Await mgmt Step 1 written response (7d from meeting).',
+      'mgmt-response-step1':'Decide: accept response or file Step 2 appeal (21d window).',
+      'union-filed-step2':'Await mgmt to schedule Step 2 review meeting (14d).',
+      'step2-meeting-held':'Await mgmt Step 2 written response (14d from meeting).',
+      'mgmt-response-step2':'Decide: accept response or file Step 3 appeal (14d window).',
+      'union-filed-step3':'Await mgmt to schedule Step 3 meeting (14d).',
+      'step3-meeting-held':'Await mgmt Step 3 final written response (14d from meeting).',
+      'mgmt-response-step3':'Decide: accept response or file arbitration notice (30d window).',
+      'union-info-request':'Monitor info request — mgmt response due within 14d.',
+      'mgmt-denied':'Consider next step: Step 2/3 appeal or arbitration.',
+      'union-filed-arb':'Prepare for arbitration. Confirm hearing date and witnesses.',
+      'arb-hearing-held':'Await arbitrator decision (typically 30d).',
+      'mgmt-response-overdue':'Follow up in writing. Consider logging formal overdue notice.',
+      'step1-mtg-scheduled':'Prepare for Step 1 meeting. Review member statement and facts.',
+      'step2-mtg-scheduled':'Prepare for Step 2 meeting. Gather all Step 1 materials and response.',
+      'step3-mtg-scheduled':'Prepare for Step 3 meeting. Full case file review.',
+    };
+    const NEXT_BY_STATUS={
+      'Info Gathering':'Complete intake. Determine if 21-day filing window applies.',
+      'Problem Solving (pre-grievance)':'Attempt informal resolution. Monitor 21-day window.',
+      'On - Hold':'Check in with member. Confirm hold terms are documented.',
+    };
+    return NEXT_ACTION[lastType]||NEXT_BY_STATUS[status]||null;
+  })();
+
   el.style.cssText='background:var(--navy);color:#fff;border-radius:var(--radius);padding:12px 16px;margin-bottom:14px';
   el.innerHTML=`
     <div style="display:flex;align-items:center;gap:16px;margin-bottom:10px;flex-wrap:wrap">
@@ -2628,6 +2684,7 @@ function renderCFHealthBanner(){
       </div>
       <div style="font-size:10px;color:rgba(255,255,255,0.5);text-transform:uppercase;letter-spacing:.06em">Last activity: <strong style="color:rgba(255,255,255,0.8)">${daysSince}</strong></div>
     </div>
+    ${whatNext?`<div style="display:flex;align-items:flex-start;gap:8px;background:rgba(255,255,255,0.08);border-radius:var(--radius);padding:8px 10px;margin-bottom:10px"><span style="font-size:14px;flex-shrink:0">→</span><div><div style="font-size:10px;color:rgba(255,255,255,0.5);text-transform:uppercase;letter-spacing:.06em;margin-bottom:2px">What\'s next</div><div style="font-size:12px;color:#fff">${escHtml(whatNext)}</div></div></div>`:''}
     <div style="font-size:10px;color:rgba(255,255,255,0.5);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Outstanding deadlines</div>
     ${dlRows}`;
 }
@@ -2756,28 +2813,26 @@ function renderCFTimeline(){
 }
 
 function updateEventForm(){
-  const type=document.getElementById('cf-evt-type').value;
-  const extRow=document.getElementById('cf-ext-row');
-  const mtgSchedRow=document.getElementById('cf-mtg-sched-row');
+  // Fully modal-aware — all element lookups prefer the modal when it is open
+  const _mU=document.getElementById('cf-modal-overlay');const _mUOpen=_mU&&_mU.style.display!=='none';
+  const getU=id=>(_mUOpen&&_mU.querySelector('#'+id))||document.getElementById(id);
+  const type=(getU('cf-evt-type')?.value)||'';
+  const extRow=getU('cf-ext-row');
+  const mtgSchedRow=getU('cf-mtg-sched-row');
   const isMtgSched=['step1-mtg-scheduled','step2-mtg-scheduled','step3-mtg-scheduled','prearb-mtg-scheduled','arb-hearing-scheduled'].includes(type);
   const isExt=type==='union-extension'||type==='mgmt-extension';
   if(extRow)extRow.style.display=isExt?'block':'none';
-  // mtgSchedRow is already found via getElementById — also needs modal-awareness
-  const _mF=document.getElementById('cf-modal-overlay');const _mFOpen=_mF&&_mF.style.display!=='none';
-  const mtgSchedRowActive=(_mFOpen&&_mF.querySelector('#cf-mtg-sched-row'))||mtgSchedRow;
-  if(mtgSchedRowActive){
-    mtgSchedRowActive.style.display=isMtgSched?'block':'none';
-    const lbl=mtgSchedRowActive.querySelector('label');
+  if(mtgSchedRow){
+    mtgSchedRow.style.display=isMtgSched?'block':'none';
+    const lbl=mtgSchedRow.querySelector('label');
     if(lbl){
       if(type==='arb-hearing-scheduled')lbl.textContent='Hearing date (actual meeting date)';
       else if(type==='prearb-mtg-scheduled')lbl.textContent='Pre-arb meeting date (actual meeting date)';
       else lbl.textContent='Meeting date (actual meeting date)';
     }
   }
-  if(mtgSchedRow&&mtgSchedRow!==mtgSchedRowActive)mtgSchedRow.style.display='none';
-  // Update event-date label — modal-aware (same pattern as addCaseEvent)
-  const _mEvt=document.getElementById('cf-modal-overlay');const _mEvtOpen=_mEvt&&_mEvt.style.display!=='none';
-  const evtDateField=(_mEvtOpen&&_mEvt.querySelector('#cf-evt-date'))||document.getElementById('cf-evt-date');
+  // Event-date label
+  const evtDateField=getU('cf-evt-date');
   if(evtDateField){
     const fieldRow=evtDateField.closest('.form-field');
     if(fieldRow){
@@ -2790,8 +2845,8 @@ function updateEventForm(){
     }
   }
   // Show auto-deadline preview
-  const preview=document.getElementById('cf-evt-preview');
-  const dateVal=document.getElementById('cf-evt-date').value;
+  const preview=getU('cf-evt-preview');
+  const dateVal=(getU('cf-evt-date')?.value)||'';
   const autoD=EVT_AUTO_DEADLINES[type];
   if(autoD&&autoD.length&&dateVal){
     const base=parseDate(dateVal);
@@ -5172,7 +5227,24 @@ function renderMgmtOwes(){
   const ft=document.getElementById('mo-filter').value;
   const fs=document.getElementById('mo-show').value;
   const fg=(document.getElementById('mo-filter-gnum')?.value||'').trim().toLowerCase();
-  let list=mgmtOwes.filter(x=>{
+  // Build effective list: saved mgmt_owes rows + calculated mgmt obligations from case logs
+  // (matches health banner source: calcAllOutstandingDeadlines)
+  const calcItems=[];
+  grievances.filter(g=>g.closed==='No').forEach(g=>{
+    const calc=calcAllOutstandingDeadlines(g.id);
+    calc.filter(d=>d.owner==='mgmt').forEach(d=>{
+      // Skip if already in mgmtOwes (match by gnum + partial label)
+      const labelLC=d.label.toLowerCase();
+      const alreadySaved=mgmtOwes.some(x=>x.gnum===g.num&&(x.what||'').toLowerCase().includes(labelLC.substring(0,30)));
+      if(!alreadySaved){
+        calcItems.push({id:'calc-'+g.id+'-'+d.date,what:d.label,type:'Step response due',
+          due:d.date,gnum:g.num,pri:'high',notes:'From case event log',
+          received:false,receivedDate:'',superseded:false,created:'',_calc:true});
+      }
+    });
+  });
+  const combined=[...mgmtOwes,...calcItems];
+  let list=combined.filter(x=>{
     if(ft&&x.type!==ft)return false;
     if(fs==='open'&&(x.received||x.superseded))return false;
     if(fs==='received'&&!x.received&&!x.superseded)return false;
