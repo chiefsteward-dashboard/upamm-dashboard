@@ -2766,7 +2766,15 @@ function renderCFHealthBanner(){
       'Info Gathering':'Complete intake. Determine if 21-day filing window applies.',
       'Problem Solving (pre-grievance)':'Attempt informal resolution. Monitor 21-day window.',
       'On - Hold':'Check in with member. Confirm hold terms are documented.',
+      'Workload Info gathering':'Gather workload data. Schedule WLR intake meeting with member.',
+      'Workload-IMPLEMENTATION':'Monitor implementation. Follow up with member on compliance.',
+      'WLR- solution finding':'Work toward resolution. Document all proposed solutions.',
+      'Step 1-Filed':'Await mgmt Step 1 oral reply (7 calendar days).',
+      'Step 2-Filed':'Await mgmt to schedule Step 2 review meeting (14 calendar days).',
+      'Step 3-Filed':'Await mgmt to schedule Step 3 meeting (14 calendar days).',
+      'Arbitration':'Confirm hearing date. Prepare witnesses and exhibits.',
     };
+    // If only status-type notes exist, fall back to status-based advice
     return NEXT_ACTION[lastType]||NEXT_BY_STATUS[status]||null;
   })();
 
@@ -4179,6 +4187,8 @@ function saveCFEdit(){
   const cfTitle=document.getElementById('cf-title');if(cfTitle)cfTitle.textContent='Grievance '+g.num+' — '+(g.brief||g.type||'');
   const cfBadge=document.getElementById('cf-status-badge');if(cfBadge)cfBadge.innerHTML=statusBadge(g.status);
   renderCFDetails();renderCFActivity();
+  // Ensure conditional form rows reflect the default selected event type
+  setTimeout(updateEventForm,50);
 }
 
 function closeCaseFile(){
@@ -4206,6 +4216,8 @@ function setCFTab(name,btn){
   if(name==='prep')renderPrepChecklist();
   if(name==='inforeq')renderCFInfoReq();
   if(name==='refs')renderCFRefs();
+  // Re-run form state whenever activity tab is shown so conditional rows render correctly
+  if(name==='activity')setTimeout(updateEventForm,0);
 }
 
 function toggleCaseDoc(idx){
