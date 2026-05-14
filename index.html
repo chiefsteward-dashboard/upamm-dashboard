@@ -963,6 +963,7 @@ tr:hover td{background:#faf9f7}
   <div class="card" style="padding:0;overflow:hidden">
     <div style="display:flex;align-items:center;gap:10px;padding:14px 18px;border-bottom:1px solid var(--border);flex-wrap:wrap">
       <div class="card-title" style="margin:0;flex:1">Outstanding Items</div>
+      <button class="btn btn-sm" onclick="syncMgmtOwesFromCases()" style="font-size:11px;color:var(--teal);border-color:var(--teal)">↻ Sync from cases</button>
       <select id="mo-filter" onchange="renderMgmtOwes()" style="font-size:12px;padding:5px 8px;width:auto">
         <option value="">All types</option>
         <option>Step response due</option><option>Information request (Art. 16 Sec. 3)</option>
@@ -972,6 +973,7 @@ tr:hover td{background:#faf9f7}
       <select id="mo-show" onchange="renderMgmtOwes()" style="font-size:12px;padding:5px 8px;width:auto">
         <option value="open">Outstanding only</option><option value="received">Received</option><option value="">All</option>
       </select>
+      <input type="text" id="mo-filter-gnum" placeholder="Grievance #..." oninput="renderMgmtOwes()" style="font-size:12px;padding:5px 8px;width:110px;border:1px solid var(--border);border-radius:var(--radius)">
     </div>
     <div id="mgmt-owes-list"></div>
   </div>
@@ -2760,21 +2762,23 @@ function updateEventForm(){
   const isMtgSched=['step1-mtg-scheduled','step2-mtg-scheduled','step3-mtg-scheduled','prearb-mtg-scheduled','arb-hearing-scheduled'].includes(type);
   const isExt=type==='union-extension'||type==='mgmt-extension';
   if(extRow)extRow.style.display=isExt?'block':'none';
-  if(mtgSchedRow){
-    mtgSchedRow.style.display=isMtgSched?'block':'none';
-    // Update planned-date label based on event type
-    const lbl=mtgSchedRow.querySelector('label');
+  // mtgSchedRow is already found via getElementById — also needs modal-awareness
+  const _mF=document.getElementById('cf-modal-overlay');const _mFOpen=_mF&&_mF.style.display!=='none';
+  const mtgSchedRowActive=(_mFOpen&&_mF.querySelector('#cf-mtg-sched-row'))||mtgSchedRow;
+  if(mtgSchedRowActive){
+    mtgSchedRowActive.style.display=isMtgSched?'block':'none';
+    const lbl=mtgSchedRowActive.querySelector('label');
     if(lbl){
       if(type==='arb-hearing-scheduled')lbl.textContent='Hearing date (actual meeting date)';
       else if(type==='prearb-mtg-scheduled')lbl.textContent='Pre-arb meeting date (actual meeting date)';
       else lbl.textContent='Meeting date (actual meeting date)';
     }
   }
-  // Update event-date label for meeting-scheduled types to be clear it's date of agreement
-  const evtDateLabel=document.querySelector('label[for="cf-evt-date"]');
-  const evtDateField=document.getElementById('cf-evt-date');
+  if(mtgSchedRow&&mtgSchedRow!==mtgSchedRowActive)mtgSchedRow.style.display='none';
+  // Update event-date label — modal-aware (same pattern as addCaseEvent)
+  const _mEvt=document.getElementById('cf-modal-overlay');const _mEvtOpen=_mEvt&&_mEvt.style.display!=='none';
+  const evtDateField=(_mEvtOpen&&_mEvt.querySelector('#cf-evt-date'))||document.getElementById('cf-evt-date');
   if(evtDateField){
-    // Find the label above the event date field
     const fieldRow=evtDateField.closest('.form-field');
     if(fieldRow){
       const lbl=fieldRow.querySelector('label');
@@ -5167,10 +5171,12 @@ function renderMgmtOwes(){
   renderMoMetrics();
   const ft=document.getElementById('mo-filter').value;
   const fs=document.getElementById('mo-show').value;
+  const fg=(document.getElementById('mo-filter-gnum')?.value||'').trim().toLowerCase();
   let list=mgmtOwes.filter(x=>{
     if(ft&&x.type!==ft)return false;
     if(fs==='open'&&(x.received||x.superseded))return false;
     if(fs==='received'&&!x.received&&!x.superseded)return false;
+    if(fg&&!(x.gnum||'').toLowerCase().includes(fg)&&!(x.what||'').toLowerCase().includes(fg))return false;
     return true;
   });
   list.sort((a,b)=>{
@@ -5178,29 +5184,62 @@ function renderMgmtOwes(){
     const da=a.due||'9999',db=b.due||'9999';return da>db?1:da<db?-1:0;
   });
   const el=document.getElementById('mgmt-owes-list');
-  if(!list.length){el.innerHTML='<p style="font-size:13px;color:#aaa;padding:14px">No items found.</p>';return;}
-  el.innerHTML=list.map(x=>{
+  if(!list.length){el.innerHTML='<p style="font-size:13px;color:#aaa;padding:14px">No items found. Use ↻ Sync from cases to pull obligations from event logs.</p>';return;}
+
+  // Group by grievance number — items without a gnum go to "General"
+  const groups={};
+  list.forEach(x=>{
+    const key=x.gnum||'__general';
+    if(!groups[key])groups[key]=[];
+    groups[key].push(x);
+  });
+  // Sort group keys: active gnums first (by urgency), then general
+  const gnumKeys=Object.keys(groups).filter(k=>k!=='__general').sort((a,b)=>{
+    const urgA=Math.min(...groups[a].filter(x=>!x.received&&!x.superseded&&x.due).map(x=>diffDays(x.due)||999));
+    const urgB=Math.min(...groups[b].filter(x=>!x.received&&!x.superseded&&x.due).map(x=>diffDays(x.due)||999));
+    return urgA-urgB;
+  });
+  const sortedKeys=[...gnumKeys,...(groups['__general']?['__general']:[])];
+
+  const renderItem=(x)=>{
     const df=x.due?diffDays(x.due):null;
     let dueHtml='—',dueCls='';
     if(x.due){
-      if(x.received)dueHtml=`Received ${x.receivedDate||''}`;
+      if(x.received)dueHtml='Received '+(x.receivedDate||'');
       else if(df<0){dueCls='dl-red';dueHtml=Math.abs(df)+'d overdue ('+fmtDisplay(x.due)+')';}
       else if(df===0){dueCls='dl-red';dueHtml='Due TODAY';}
       else if(df<=7){dueCls='dl-amber';dueHtml='Due in '+df+'d ('+fmtDisplay(x.due)+')';}
       else dueHtml=fmtDisplay(x.due);
     }
-    const priCls=x.pri==='high'?'b-high':x.pri==='med'?'b-med':'b-low';
-    return`<div class="dl-item" style="${x.received?'opacity:0.5':''}">
+    return`<div class="dl-item" style="${x.received||x.superseded?'opacity:0.5':''}">
       <div style="min-width:8px;width:8px;height:8px;border-radius:50%;background:${x.pri==='high'?'var(--red)':x.pri==='med'?'var(--amber)':'#aaa'};flex-shrink:0"></div>
       <div class="dl-body">
         <div class="dl-name">${escHtml(x.what)}${x.received?' <span style="color:var(--teal);font-size:11px">✓ Received</span>':''}${x.superseded?' <span style="background:#f0ede8;color:#888;font-size:10px;padding:1px 6px;border-radius:99px;font-weight:600">Superseded</span>':''}</div>
-        <div class="dl-sub">${x.type}${x.gnum?` · <a href="#" onclick="openGrievanceFromDeadline('${escHtml(x.gnum)}');return false;" style="color:var(--navy);font-weight:600">#${escHtml(x.gnum)}</a>`:''}${x.contact?' · '+x.contact:''}${x.notes?' · '+x.notes:''}</div>
+        <div class="dl-sub">${x.type}${x.contact?' · '+x.contact:''}${x.notes?' · '+x.notes:''}</div>
       </div>
       <div class="dl-date ${dueCls}">${dueHtml}</div>
       <div style="display:flex;gap:4px;flex-shrink:0">
-        ${!x.received?`<button class="btn btn-sm btn-green" style="font-size:11px" onclick="markMoReceived(${x.id})">✓ Received</button>`:''}
+        ${!x.received&&!x.superseded?`<button class="btn btn-sm btn-green" style="font-size:11px" onclick="markMoReceived(${x.id})">✓ Received</button>`:''}
         <button class="btn btn-sm btn-danger" onclick="delMgmtOwes(${x.id})">✕</button>
       </div>
+    </div>`;
+  };
+
+  el.innerHTML=sortedKeys.map(key=>{
+    const items=groups[key];
+    const g=key!=='__general'?grievances.find(x=>x.gnum===key||x.num===key):null;
+    const label=key==='__general'?'General / No case linked':('Grievance #'+key+(g&&g.brief?' — '+g.brief:''));
+    const openCount=items.filter(x=>!x.received&&!x.superseded).length;
+    const urgentCount=items.filter(x=>!x.received&&!x.superseded&&x.due&&(diffDays(x.due)||1)<=7).length;
+    const headerColor=urgentCount>0?'var(--red)':openCount>0?'var(--navy)':'var(--text3)';
+    return`<div style="border-bottom:2px solid var(--border);margin-bottom:0">
+      <div style="display:flex;align-items:center;gap:8px;padding:10px 14px;background:#faf9f7;cursor:pointer" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'block':'none'">
+        <span style="font-size:12px;font-weight:700;color:${headerColor};flex:1">${escHtml(label)}</span>
+        ${openCount>0?`<span style="font-size:11px;background:${urgentCount>0?'#fcebeb':'#eeedfe'};color:${urgentCount>0?'var(--red)':'var(--purple)'};padding:2px 8px;border-radius:99px;font-weight:600">${openCount} open${urgentCount>0?' · '+urgentCount+' urgent':''}</span>`:'<span style="font-size:11px;color:var(--teal)">✓ All received</span>'}
+        ${key!=='__general'?`<a href="#" onclick="openGrievanceFromDeadline('${escHtml(key)}');return false;" style="font-size:11px;color:var(--navy);font-weight:600;text-decoration:none">Open case →</a>`:''}
+        <span style="font-size:12px;color:var(--text3)">▾</span>
+      </div>
+      <div>${items.map(renderItem).join('')}</div>
     </div>`;
   }).join('');
 }
