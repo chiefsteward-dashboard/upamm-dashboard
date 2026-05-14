@@ -224,6 +224,7 @@ tr:hover td{background:#faf9f7}
     <div class="nav-group">Admin</div>
     <div class="nav-item" onclick="showPanel('time',this)"><span class="nav-icon">⏱</span> Time Tracker</div>
     <div class="nav-item" onclick="showPanel('update',this)"><span class="nav-icon">📝</span> Officer Update</div>
+    <div class="nav-item" onclick="showPanel('settings',this)"><span class="nav-icon">⚙</span> Settings</div>
   </nav>
   <div style="padding:12px 14px;border-top:1px solid rgba(255,255,255,0.1)">
     <div id="backup-status" style="font-size:10px;color:rgba(255,255,255,0.4);margin-bottom:6px;text-align:center"></div>
@@ -1168,6 +1169,37 @@ tr:hover td{background:#faf9f7}
   </div>
 </div>
 
+<!-- SETTINGS PANEL -->
+<div id="panel-settings" class="panel">
+  <h1>Settings &amp; Key People</h1>
+  <p class="subtitle">Manage key contacts used across the dashboard — names here appear as suggestions in event log fields</p>
+
+  <div class="card">
+    <div class="card-title">Key Contacts &amp; Officers</div>
+    <p style="font-size:12px;color:var(--text3);margin-bottom:14px">These names appear as suggestions in event log "Who" fields. Editing here does not change any previously logged events — only future autocomplete suggestions.</p>
+    <div id="settings-contacts-list"></div>
+    <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border)">
+      <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px">Add contact</div>
+      <div class="form-row">
+        <div class="form-field" style="flex:2"><label>Name</label><input type="text" id="kc-name" placeholder="Full name"></div>
+        <div class="form-field" style="flex:2"><label>Role / Title</label><input type="text" id="kc-role" placeholder="e.g. Director of Labor Relations"></div>
+        <div class="form-field"><label>Organization</label><input type="text" id="kc-org" placeholder="e.g. Michigan Medicine" value="Michigan Medicine"></div>
+      </div>
+      <button class="btn btn-primary btn-sm" onclick="addKeyContact()">Add Contact</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">About this dashboard</div>
+    <div style="font-size:13px;color:var(--text2);line-height:1.8">
+      <div>Version: <strong>9.4</strong></div>
+      <div>Supabase project: <strong>dolikttxxmrdbosyuqmn</strong></div>
+      <div>Deployed at: <strong>chiefsteward-dashboard.github.io/upamm-dashboard/</strong></div>
+      <div>Built by: <strong>Alexandra Tiefel, PA-C — Chief Steward, UPAMM AFT Local 5297</strong></div>
+    </div>
+  </div>
+</div>
+
 </div><!-- /main-app -->
 
 <!-- DAY DETAIL MODAL -->
@@ -1239,6 +1271,12 @@ let caseData={};
 let activeCaseId=null;
 let mgmtOwes=[];
 let refLib=[];
+// Key contacts — editable list stored in Supabase notes table with tag __contacts
+let keyContacts=[
+  {id:1,name:'Rosa Garcia',role:'Senior Labor Relations Specialist',org:'Michigan Medicine'},
+  {id:2,name:'Walter Tetteh',role:'Director of Labor Relations',org:'Michigan Medicine'},
+  {id:3,name:'Lisa Spratke',role:'UPAMM President',org:'UPAMM AFT Local 5297'},
+];
 let timerRunning=false,timerStart=null,timerElapsed=0,timerInterval=null;
 let calView='month',calYear=new Date().getFullYear(),calMonth=new Date().getMonth(),calWeekStart=mondayOf(new Date());
 let bulkSelected=new Set();
@@ -1314,6 +1352,24 @@ async function sbDeleteMeeting(id){meetings=meetings.filter(m=>m.id!=id);await s
 async function sbSaveMgmtOwes(x){await sbUpsert('mgmt_owes',mgmtOwesToDb(x));}
 async function sbDeleteMgmtOwes(id){mgmtOwes=mgmtOwes.filter(x=>x.id!=id);await sbDelete('mgmt_owes',id,'Mgmt owes deleted');}
 async function sbSaveNote(n){await sbUpsert('notes',{...n,last_edited_by:currentUserName()});}
+async function saveKeyContacts(){
+  try{
+    await sb.from('notes').upsert({id:-998,date:today(),tag:'__contacts',body:JSON.stringify(keyContacts),last_edited_by:currentUserName()},{onConflict:'id'});
+  }catch(e){console.error('saveKeyContacts error',e);}
+}
+function getContactNames(){
+  // Returns all contact names for datalist: key contacts + stewards
+  const names=keyContacts.map(c=>c.name);
+  stewards.forEach(s=>{if(s.name&&!names.includes(s.name))names.push(s.name);});
+  return names;
+}
+function buildContactDatalist(listId){
+  // Builds/updates a datalist element with current contact names
+  let dl=document.getElementById(listId);
+  if(!dl){dl=document.createElement('datalist');dl.id=listId;document.body.appendChild(dl);}
+  dl.innerHTML=getContactNames().map(n=>`<option value="${n}">`).join('');
+  return listId;
+}
 async function sbDeleteNote(id){notes=notes.filter(n=>n.id!=id);await sbDelete('notes',id,'Note deleted');}
 async function sbSaveTimeLog(e){await sbUpsert('time_log',{...e,logged_by:currentUserName()});}
 async function sbDeleteTimeLog(id){timeLog=timeLog.filter(e=>e.id!=id);await sbDelete('time_log',id,'Time log deleted');}
@@ -1349,6 +1405,11 @@ async function loadAllData(){
   // union_owes loaded separately — table may not exist yet if SQL not run
   let uo=[];
   try{const r=await sb.from('union_owes').select('*').order('id',{ascending:false});uo=r.data||[];}catch(e){console.warn('union_owes table not found — run SQL to create it');}
+  // keyContacts: stored in notes table with tag __contacts
+  try{
+    const kc=await sb.from('notes').select('body').eq('tag','__contacts').maybeSingle();
+    if(kc.data?.body){const parsed=JSON.parse(kc.data.body);if(Array.isArray(parsed)&&parsed.length)keyContacts=parsed;}
+  }catch(e){console.warn('keyContacts load failed, using defaults');}
 
   // Map DB snake_case to camelCase where needed
   grievances=(g||[]).map(mapGrievance);
@@ -1438,7 +1499,7 @@ function showPanel(id,el){
   document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
   document.getElementById('panel-'+id).classList.add('active');
   el.classList.add('active');
-  const init={calendar:initCalendar,deadlines:()=>{renderDlMetrics();renderDeadlines();},tasks:()=>{renderTaskMetrics();renderTasks();},grievances:()=>{populateFilters();renderGrievances();renderGMetrics();render21DayBanner();},stewards:()=>{renderStewardMetrics();renderStewards();},'mgmt-owes':()=>{renderMgmtOwes();},'union-owes':()=>{renderUnionOwes();},reflib:()=>{renderRefLib();},time:()=>{updateTimeMetrics();renderTimeLog();},notes:()=>{document.getElementById('n-date').value=today();renderNotes();},meetings:()=>{document.getElementById('mt-date').value=today();renderMeetings();},schedule:()=>{renderRecurring();renderOneOffs();loadSchedBlocks();},update:()=>{renderStatsChart();}};
+  const init={calendar:initCalendar,deadlines:()=>{renderDlMetrics();renderDeadlines();},tasks:()=>{renderTaskMetrics();renderTasks();},grievances:()=>{populateFilters();renderGrievances();renderGMetrics();render21DayBanner();},stewards:()=>{renderStewardMetrics();renderStewards();},'mgmt-owes':()=>{renderMgmtOwes();},'union-owes':()=>{renderUnionOwes();},reflib:()=>{renderRefLib();},time:()=>{updateTimeMetrics();renderTimeLog();},notes:()=>{document.getElementById('n-date').value=today();renderNotes();},meetings:()=>{document.getElementById('mt-date').value=today();renderMeetings();},schedule:()=>{renderRecurring();renderOneOffs();loadSchedBlocks();},update:()=>{renderStatsChart();},settings:()=>{renderKeyContacts();}};
   if(init[id])init[id]();
 }
 
@@ -2644,7 +2705,13 @@ function renderCFHealthBanner(){
   // What's Next — derive from ball-in-court + last event + status
   const whatNext=(()=>{
     if(!g)return null;
-    const lastEvt=realNotes.length?[...realNotes].sort((a,b)=>new Date(b.ts)-new Date(a.ts))[0]:null;
+    // Use all non-auto notes sorted by event date first, then log timestamp
+    const sortedNotes=[...realNotes].filter(n=>n.type&&n.type!=='auto'&&n.type!=='status').sort((a,b)=>{
+      const da=a.date?new Date(a.date+'T00:00:00'):new Date(a.ts);
+      const db=b.date?new Date(b.date+'T00:00:00'):new Date(b.ts);
+      return db-da;
+    });
+    const lastEvt=sortedNotes[0]||null;
     const lastType=lastEvt?.type||'';
     const status=g.status||'';
     // Map last event to next recommended action
@@ -2684,7 +2751,7 @@ function renderCFHealthBanner(){
       </div>
       <div style="font-size:10px;color:rgba(255,255,255,0.5);text-transform:uppercase;letter-spacing:.06em">Last activity: <strong style="color:rgba(255,255,255,0.8)">${daysSince}</strong></div>
     </div>
-    ${whatNext?`<div style="display:flex;align-items:flex-start;gap:8px;background:rgba(255,255,255,0.08);border-radius:var(--radius);padding:8px 10px;margin-bottom:10px"><span style="font-size:14px;flex-shrink:0">→</span><div><div style="font-size:10px;color:rgba(255,255,255,0.5);text-transform:uppercase;letter-spacing:.06em;margin-bottom:2px">What\'s next</div><div style="font-size:12px;color:#fff">${escHtml(whatNext)}</div></div></div>`:''}
+    ${whatNext?`<div style="background:rgba(100,220,160,0.12);border:1px solid rgba(100,220,160,0.25);border-radius:var(--radius);padding:8px 12px;margin-bottom:10px;display:flex;align-items:flex-start;gap:10px"><div style="font-size:16px;flex-shrink:0;margin-top:-1px">→</div><div><div style="font-size:10px;color:rgba(100,220,160,0.8);text-transform:uppercase;letter-spacing:.07em;font-weight:700;margin-bottom:3px">What\'s next</div><div style="font-size:12px;color:#e8fef4;line-height:1.5">${escHtml(whatNext)}</div></div></div>`:'<div style="font-size:11px;color:rgba(255,255,255,0.3);margin-bottom:10px;font-style:italic">Log an event to see recommended next action.</div>'}
     <div style="font-size:10px;color:rgba(255,255,255,0.5);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Outstanding deadlines</div>
     ${dlRows}`;
 }
@@ -4638,6 +4705,61 @@ function logTime(){const e=timerRunning?Date.now()-timerStart:timerElapsed;const
 function updateTimeMetrics(){const td=today();const ws=new Date();ws.setDate(ws.getDate()-ws.getDay());const ms=new Date();ms.setDate(1);const hm=m=>`${Math.floor(m/60)}h ${m%60}m`;document.getElementById('time-metrics').innerHTML=`<div class="metric"><div class="metric-val">${hm(timeLog.filter(e=>e.date===td).reduce((a,e)=>a+e.mins,0))}</div><div class="metric-label">Today</div></div><div class="metric"><div class="metric-val">${hm(timeLog.filter(e=>new Date(e.date)>=ws).reduce((a,e)=>a+e.mins,0))}</div><div class="metric-label">This week</div></div><div class="metric"><div class="metric-val">${hm(timeLog.filter(e=>new Date(e.date)>=ms).reduce((a,e)=>a+e.mins,0))}</div><div class="metric-label">This month</div></div><div class="metric"><div class="metric-val">${hm(timeLog.reduce((a,e)=>a+e.mins,0))}</div><div class="metric-label">All time</div></div>`;}
 function renderTimeLog(){const el=document.getElementById('time-log');if(!timeLog.length){el.innerHTML='<p style="font-size:13px;color:#aaa">No time logged yet.</p>';return;}let html='<table><thead><tr><th>Date</th><th>Category</th><th>Duration</th><th>Notes</th><th></th></tr></thead><tbody>';[...timeLog].reverse().forEach(e=>{html+=`<tr><td>${e.date}</td><td>${e.cat}</td><td>${Math.floor(e.mins/60)}h ${e.mins%60}m</td><td style="font-size:12px">${e.notes||'—'}</td><td><button class="btn btn-sm btn-danger" onclick="delT(${e.id})">✕</button></td></tr>`;});html+='</tbody></table>';el.innerHTML=html;}
 function delT(id){sbDeleteTimeLog(id);updateTimeMetrics();renderTimeLog();}
+
+// ── KEY CONTACTS / SETTINGS ───────────────────────────────────────────
+function renderKeyContacts(){
+  const el=document.getElementById('settings-contacts-list');if(!el)return;
+  if(!keyContacts.length){el.innerHTML='<p style="font-size:13px;color:#aaa">No contacts yet.</p>';return;}
+  el.innerHTML=keyContacts.map(c=>`
+    <div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid #f0ede8" id="kc-row-${c.id}">
+      <div style="flex:1">
+        <div style="font-size:13px;font-weight:600;color:var(--text)">${c.name}</div>
+        <div style="font-size:11px;color:var(--text3);margin-top:2px">${c.role||''}${c.org?' · '+c.org:''}</div>
+      </div>
+      <button class="btn btn-sm" onclick="editKeyContact(${c.id})" style="font-size:11px">Edit</button>
+      <button class="btn btn-sm btn-danger" onclick="deleteKeyContact(${c.id})" style="font-size:11px">✕</button>
+    </div>
+    <div id="kc-edit-${c.id}" style="display:none;background:#f9f8f6;border:1px solid var(--border);border-radius:var(--radius);padding:12px;margin-bottom:6px">
+      <div class="form-row">
+        <div class="form-field" style="flex:2"><label>Name</label><input type="text" id="kce-name-${c.id}" value="${c.name}"></div>
+        <div class="form-field" style="flex:2"><label>Role</label><input type="text" id="kce-role-${c.id}" value="${c.role||''}"></div>
+        <div class="form-field"><label>Org</label><input type="text" id="kce-org-${c.id}" value="${c.org||''}"></div>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-primary btn-sm" onclick="saveKeyContactEdit(${c.id})">Save</button>
+        <button class="btn btn-sm" onclick="document.getElementById('kc-edit-${c.id}').style.display='none';document.getElementById('kc-row-${c.id}').style.display='flex'">Cancel</button>
+      </div>
+    </div>`).join('');
+}
+
+function addKeyContact(){
+  const name=document.getElementById('kc-name').value.trim();
+  if(!name)return alert('Name required');
+  const id=Date.now();
+  keyContacts.push({id,name,role:document.getElementById('kc-role').value.trim(),org:document.getElementById('kc-org').value.trim()||'Michigan Medicine'});
+  saveKeyContacts();renderKeyContacts();
+  ['kc-name','kc-role'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('kc-org').value='Michigan Medicine';
+}
+
+function editKeyContact(id){
+  document.getElementById('kc-row-'+id).style.display='none';
+  document.getElementById('kc-edit-'+id).style.display='block';
+}
+
+function saveKeyContactEdit(id){
+  const c=keyContacts.find(x=>x.id===id);if(!c)return;
+  c.name=document.getElementById('kce-name-'+id).value.trim()||c.name;
+  c.role=document.getElementById('kce-role-'+id).value.trim();
+  c.org=document.getElementById('kce-org-'+id).value.trim();
+  saveKeyContacts();renderKeyContacts();
+}
+
+function deleteKeyContact(id){
+  if(!confirm('Remove this contact?'))return;
+  keyContacts=keyContacts.filter(x=>x.id!==id);
+  saveKeyContacts();renderKeyContacts();
+}
 
 // ── OFFICER UPDATE ────────────────────────────────────────────────────
 function generateUpdate(){const ds=new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'});document.getElementById('update-date').textContent=ds;const open=grievances.filter(g=>g.closed==='No');const step3=open.filter(g=>g.status&&g.status.includes('Step 3'));const arb=open.filter(g=>g.status==='Arbitration');const hold=open.filter(g=>g.status&&g.status.includes('Hold'));const wlr=open.filter(g=>g.status&&(g.status.includes('Workload')||g.status.includes('WLR')));const ws=new Date();ws.setDate(ws.getDate()-ws.getDay());const wm=timeLog.filter(e=>new Date(e.date)>=ws).reduce((a,e)=>a+e.mins,0);const td=new Date();td.setHours(0,0,0,0);const urgent=open.filter(g=>g.deadline&&(diffDays(g.deadline)||0)<=7&&(diffDays(g.deadline)||0)>=0);const extra=document.getElementById('u-extra').value.trim();let t=`UPAMM — AFT Local 5297\nOFFICER MEETING UPDATE\n${ds}\nPresented by: Alexandra Tiefel, PA-C | Chief Steward\n`;t+=`\n══════════════════════\nGRIEVANCE SUMMARY\n══════════════════════\n`;t+=`Total: ${grievances.length}  Open: ${open.length}  Step 3: ${step3.length}  Arbitration: ${arb.length}  On Hold: ${hold.length}  WLR: ${wlr.length}\n`;if(step3.length){t+=`\nStep 3:\n`;step3.forEach(g=>{t+=`  • ${g.num} — ${g.brief||g.type} [${g.steward||'unassigned'}]\n`;});}if(arb.length){t+=`\nArbitration:\n`;arb.forEach(g=>{t+=`  • ${g.num} — ${g.brief||g.type}\n`;});}if(hold.length){t+=`\nOn Hold:\n`;hold.forEach(g=>{t+=`  • ${g.num} — ${g.brief||g.type}\n`;});}if(wlr.length){t+=`\nActive WLR:\n`;wlr.forEach(g=>{t+=`  • ${g.num} — ${g.brief||g.type} [${g.steward||'unassigned'}]\n`;});}if(urgent.length){t+=`\n⚠ Deadlines within 7 days:\n`;urgent.forEach(g=>{t+=`  • ${g.num} — due ${g.deadline}\n`;});}t+=`\n══════════════════════\nOPEN TASKS\n══════════════════════\n`;const openTasks=tasks.filter(t2=>!t2.done&&t2.pri==='high');if(openTasks.length){openTasks.forEach(tk=>{t+=`  • [${tk.pri.toUpperCase()}] ${tk.title}${tk.due?' (due '+fmtDisplay(tk.due)+')':''}\n`;})}else t+=`No high-priority tasks open.\n`;t+=`\n══════════════════════\nUPCOMING DEADLINES\n══════════════════════\n`;const allDl=getAllDeadlines().filter(d=>!d.done).sort((a,b)=>(diffDays(a.date)||999)-(diffDays(b.date)||999)).slice(0,5);allDl.forEach(d=>{const df=diffDays(d.date);t+='  • '+d.name+(df!==null?' ('+(df<0?Math.abs(df)+'d overdue':df===0?'today':'in '+df+'d')+')':'')+('\n');});t+=`\n══════════════════════\nSTEWARD ROSTER\n══════════════════════\n`;if(stewards.length){const act=stewards.filter(s=>s.status==='Active').length,vac=stewards.filter(s=>s.status==='Vacancy').length;t+=`Active: ${act}  Vacancies: ${vac}\n`;}else t+=`[Add stewards to roster]\n`;t+=`\n══════════════════════\nTIME THIS WEEK\n══════════════════════\n${Math.floor(wm/60)}h ${wm%60}m logged\n`;const weekMtgs=meetings.filter(m=>{try{return new Date(m.date)>=ws;}catch(e){return false;}});if(weekMtgs.length){t+=`Meetings: ${weekMtgs.length}\n`;weekMtgs.forEach(m=>{t+=`  • ${TYPE_LABELS[m.type]||m.type}${m.gnum?' (#'+m.gnum+')':''}\n`;});}if(extra)t+=`\n══════════════════════\nADDITIONAL ITEMS\n══════════════════════\n${extra}\n`;t+=`\n══════════════════════\nNEXT STEPS\n══════════════════════\n• Monitor open grievance deadlines\n• [Add specific action items]\n`;document.getElementById('update-content').textContent=t;document.getElementById('update-card').style.display='block';}
