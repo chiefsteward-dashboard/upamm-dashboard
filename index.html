@@ -751,7 +751,6 @@ tr:hover td{background:#faf9f7}
                     <option value="union-filed-arb">Arbitration notice filed</option>
                     <option value="union-info-request">Information request filed (Art. 16 Sec. 3)</option>
                     <option value="union-extension">Extension agreed (we granted)</option>
-                    <option value="union-contact">Union contacted management</option>
                     <option value="union-withdrew">Grievance withdrawn</option>
                   </optgroup>
                   <optgroup label="Meetings — Scheduled">
@@ -2919,7 +2918,10 @@ function updateEventForm(){
   // Fully modal-aware — all element lookups prefer the modal when it is open
   const _mU=document.getElementById('cf-modal-overlay');const _mUOpen=_mU&&_mU.style.display!=='none';
   const getU=id=>(_mUOpen&&_mU.querySelector('#'+id))||document.getElementById(id);
-  const type=(getU('cf-evt-type')?.value)||'';
+  // Guard: if the event type element isn't in DOM yet, bail and retry
+  const typeEl=getU('cf-evt-type');
+  if(!typeEl)return;
+  const type=typeEl.value||'';
   const extRow=getU('cf-ext-row');
   const mtgSchedRow=getU('cf-mtg-sched-row');
   const isMtgSched=['step1-mtg-scheduled','step2-mtg-scheduled','step3-mtg-scheduled','prearb-mtg-scheduled','arb-hearing-scheduled'].includes(type);
@@ -3794,7 +3796,6 @@ function openCaseFile(id){
                     <option value="union-filed-arb">Arbitration notice filed</option>
                     <option value="union-info-request">Information request filed (Art. 16 Sec. 3)</option>
                     <option value="union-extension">Extension agreed (we granted)</option>
-                    <option value="union-contact">Union contacted management</option>
                     <option value="union-withdrew">Grievance withdrawn</option>
                   </optgroup>
                   <optgroup label="Meetings — Scheduled">
@@ -4188,7 +4189,7 @@ function saveCFEdit(){
   const cfBadge=document.getElementById('cf-status-badge');if(cfBadge)cfBadge.innerHTML=statusBadge(g.status);
   renderCFDetails();renderCFActivity();
   // Ensure conditional form rows reflect the default selected event type
-  setTimeout(updateEventForm,50);
+  setTimeout(updateEventForm,150);
 }
 
 function closeCaseFile(){
@@ -4217,7 +4218,7 @@ function setCFTab(name,btn){
   if(name==='inforeq')renderCFInfoReq();
   if(name==='refs')renderCFRefs();
   // Re-run form state whenever activity tab is shown so conditional rows render correctly
-  if(name==='activity')setTimeout(updateEventForm,0);
+  if(name==='activity')setTimeout(updateEventForm,50);
 }
 
 function toggleCaseDoc(idx){
