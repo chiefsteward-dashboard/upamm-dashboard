@@ -704,7 +704,7 @@ tr:hover td{background:#faf9f7}
     <!-- ACTIVITY / STATUS TAB -->
     <div id="cf-tab-activity">
       <!-- Case Health Banner -->
-      <div id="cf-health-banner" style="background:var(--navy);color:#fff;border-radius:var(--radius);padding:12px 16px;margin-bottom:14px;display:flex;align-items:center;gap:20px;flex-wrap:wrap"></div>
+      <div id="cf-health-banner" style="background:var(--navy);color:#fff;border-radius:var(--radius);padding:12px 16px;margin-bottom:14px"></div>
       <!-- Split layout: timeline left, log form right -->
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start">
         <!-- LEFT: Article 16 Timeline -->
@@ -786,7 +786,7 @@ tr:hover td{background:#faf9f7}
             </div>
             <!-- Meeting scheduled: second date field for planned meeting date -->
             <div id="cf-mtg-sched-row" style="display:none" class="form-row">
-              <div class="form-field"><label>Meeting planned for</label><input type="date" id="cf-mtg-planned-date" placeholder="Date of the actual meeting"></div>
+              <div class="form-field"><label id="cf-mtg-planned-label">Meeting date</label><input type="date" id="cf-mtg-planned-date"></div>
             </div>
             <div class="form-row">
               <div class="form-field" style="flex:3"><label>Notes</label><input type="text" id="cf-evt-notes" placeholder="Details, attendees, key points..." onkeydown="if(event.key==='Enter')addCaseEvent()"></div>
@@ -2728,7 +2728,16 @@ function updateEventForm(){
   const isMtgSched=['step1-mtg-scheduled','step2-mtg-scheduled','step3-mtg-scheduled','prearb-mtg-scheduled','arb-hearing-scheduled'].includes(type);
   const isExt=type==='union-extension'||type==='mgmt-extension';
   if(extRow)extRow.style.display=isExt?'block':'none';
-  if(mtgSchedRow)mtgSchedRow.style.display=isMtgSched?'block':'none';
+  if(mtgSchedRow){
+    mtgSchedRow.style.display=isMtgSched?'block':'none';
+    // Update label based on event type
+    const lbl=mtgSchedRow.querySelector('label');
+    if(lbl){
+      if(type==='arb-hearing-scheduled')lbl.textContent='Hearing date';
+      else if(type==='prearb-mtg-scheduled')lbl.textContent='Pre-arb meeting date';
+      else lbl.textContent='Meeting date';
+    }
+  }
   // Show auto-deadline preview
   const preview=document.getElementById('cf-evt-preview');
   const dateVal=document.getElementById('cf-evt-date').value;
@@ -2813,6 +2822,18 @@ function addCaseEvent(){
     const dl=new Date(base);dl.setDate(dl.getDate()+30);
     const newDl={id:Date.now()+1,name:'Arbitration notice deadline — Grievance #'+g.num,date:isoDate(dl),cat:'Grievance step',gnum:g.num,notes:'Auto-created: Step 3 response received',done:false};
     deadlines.push(newDl);sbSaveDeadline(newDl);
+  }
+  // Special: arb hearing scheduled with planned hearing date → witness notification + decision deadlines
+  if(type==='arb-hearing-scheduled'&&plannedDate&&g){
+    const hearingBase=parseDate(plannedDate);
+    if(hearingBase){
+      const witnessDate=new Date(hearingBase);witnessDate.setDate(witnessDate.getDate()-14);
+      const decisionDate=new Date(hearingBase);decisionDate.setDate(decisionDate.getDate()+30);
+      const wDl={id:Date.now()+Math.floor(Math.random()*1000),name:'Witness notification deadline — Grievance #'+g.num,date:isoDate(witnessDate),cat:'Arbitration',gnum:g.num,notes:'2 weeks before hearing on '+fmtDisplay(plannedDate),done:false};
+      const aDl={id:Date.now()+Math.floor(Math.random()*1000)+1,name:'Arbitrator decision expected — Grievance #'+g.num,date:isoDate(decisionDate),cat:'Arbitration',gnum:g.num,notes:'30 days after hearing on '+fmtDisplay(plannedDate),done:false};
+      deadlines.push(wDl);deadlines.push(aDl);
+      sbSaveDeadline(wDl);sbSaveDeadline(aDl);
+    }
   }
   // Auto-update grievance status for key events
   if(g){
@@ -3508,7 +3529,7 @@ function openCaseFile(id){
   // Tab content containers — built fresh to avoid duplicate IDs
   const tabHTMLBuilders={
     activity:()=>`
-      <div id="cf-health-banner" style="background:var(--navy);color:#fff;border-radius:var(--radius);padding:12px 16px;margin-bottom:14px;display:flex;align-items:center;gap:20px;flex-wrap:wrap"></div>
+      <div id="cf-health-banner" style="background:var(--navy);color:#fff;border-radius:var(--radius);padding:12px 16px;margin-bottom:14px"></div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start">
         <div>
           <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
@@ -3586,7 +3607,7 @@ function openCaseFile(id){
               <div class="form-field" style="max-width:150px"><label>Event date</label><input type="date" id="cf-evt-date" oninput="updateEventForm()"></div>
             </div>
             <div id="cf-mtg-sched-row" style="display:none" class="form-row">
-              <div class="form-field"><label>Meeting planned for</label><input type="date" id="cf-mtg-planned-date"></div>
+              <div class="form-field"><label id="cf-mtg-planned-label">Meeting date</label><input type="date" id="cf-mtg-planned-date"></div>
             </div>
             <div class="form-row">
               <div class="form-field" style="flex:3"><label>Notes</label><input type="text" id="cf-evt-notes" placeholder="Details, attendees, key points..." onkeydown="if(event.key===\'Enter\')addCaseEvent()"></div>
