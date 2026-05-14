@@ -357,6 +357,7 @@ tr:hover td{background:#faf9f7}
       <select id="tk-filter-done" onchange="renderTasks()" style="font-size:12px;padding:5px 8px;width:auto">
         <option value="open">Open tasks</option><option value="done">Completed</option><option value="">All</option>
       </select>
+      <input type="text" id="tk-filter-gnum" placeholder="Grievance #..." oninput="renderTasks()" style="font-size:12px;padding:5px 8px;width:110px;border:1px solid var(--border);border-radius:var(--radius)">
       <button class="btn btn-sm" onclick="printTasks()">🖨 Print</button>
       <button class="btn btn-sm btn-green" onclick="exportCSV('tasks')">⬇ Export CSV</button>
     </div>
@@ -660,6 +661,14 @@ tr:hover td{background:#faf9f7}
         <select id="f-type" onchange="renderGrievances()"><option value="">All types</option></select>
         <select id="f-steward" onchange="renderGrievances()"><option value="">All stewards</option></select>
         <select id="f-closed" onchange="renderGrievances()"><option value="">Open + Closed</option><option value="No">Open only</option><option value="Yes">Closed only</option></select>
+        <select id="f-sort" onchange="renderGrievances()" style="min-width:160px">
+          <option value="date-desc">↓ Date filed (newest)</option>
+          <option value="date-asc">↑ Date filed (oldest)</option>
+          <option value="deadline-asc">⏰ Deadline (soonest)</option>
+          <option value="activity-desc">↓ Last activity</option>
+          <option value="activity-asc">↑ Last activity</option>
+          <option value="num-asc">↑ Grievance # (asc)</option>
+        </select>
         <input type="text" id="f-search" placeholder="Search..." oninput="renderGrievances()" style="flex:2">
       </div>
       <!-- Bulk update bar -->
@@ -834,7 +843,10 @@ tr:hover td{background:#faf9f7}
             </div>
             <div id="cf-obligations-list"></div>
           </div>
-          <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin:14px 0 8px">Event history</div>
+          <div style="display:flex;align-items:center;gap:8px;margin:14px 0 8px">
+            <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;flex:1">Event history &amp; case notes</div>
+            <span style="font-size:10px;color:var(--text3);background:#f0ede8;padding:2px 7px;border-radius:99px">All logged events appear here</span>
+          </div>
           <div id="cf-activity-list"></div>
         </div>
       </div>
@@ -1265,8 +1277,26 @@ async function sbSaveGrievance(g){await sbUpsert('grievances',grievanceToDb(g),'
 async function sbDeleteGrievance(id){grievances=grievances.filter(g=>g.id!=id);await sbDelete('grievances',id,'Grievance deleted');await sb.from('case_data').delete().eq('grievance_id',id);}
 async function sbSaveCaseData(gId){
   const cd=getCaseData(gId);
+  // Show saving indicator
+  updateCaseSaveStatus('saving');
   const {error}=await sb.from('case_data').upsert({grievance_id:gId,notes:cd.notes||[],docs:cd.docs||[],info_requests:cd.infoRequests||[],last_edited_by:currentUserName(),last_edited_at:new Date().toISOString()},{onConflict:'grievance_id'});
-  if(error)console.error('case_data save error',error);
+  if(error){console.error('case_data save error',error);updateCaseSaveStatus('error');}
+  else{updateCaseSaveStatus('saved');}
+}
+
+function updateCaseSaveStatus(state){
+  const el=document.getElementById('cf-save-status');
+  if(!el)return;
+  const now=new Date().toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
+  if(state==='saving'){el.innerHTML='<span style="color:var(--amber)">💾 Saving…</span>';}
+  else if(state==='saved'){el.innerHTML='<span style="color:#27500a">✓ Saved '+now+'</span>';setTimeout(()=>{if(el)el.innerHTML='<span style="color:rgba(255,255,255,0.4)">Last saved: '+now+'</span>';},2500);}
+  else if(state==='error'){el.innerHTML='<span style="color:var(--red)">⚠ Save failed — check connection</span>';}
+}
+
+async function forceSaveCaseData(){
+  if(!activeCaseId)return;
+  await sbSaveCaseData(activeCaseId);
+  await sbSaveGrievance(grievances.find(x=>x.id==activeCaseId)||{});
 }
 async function sbSaveSteward(s){await sbUpsert('stewards',stewardToDb(s),'Steward '+s.name+' saved');}
 async function sbDeleteSteward(id){stewards=stewards.filter(s=>s.id!=id);await sbDelete('stewards',id,'Steward deleted');}
@@ -1768,11 +1798,13 @@ function renderTasks(){
   const fp=document.getElementById('tk-filter-pri').value;
   const fc=document.getElementById('tk-filter-cat').value;
   const fd=document.getElementById('tk-filter-done').value;
+  const fg=(document.getElementById('tk-filter-gnum')?.value||'').trim().toLowerCase();
   let list=tasks.filter(t=>{
     if(fp&&t.pri!==fp)return false;
     if(fc&&t.cat!==fc)return false;
     if(fd==='open'&&t.done)return false;
     if(fd==='done'&&!t.done)return false;
+    if(fg&&!(t.gnum||'').toLowerCase().includes(fg))return false;
     return true;
   });
   list.sort((a,b)=>{
@@ -2730,12 +2762,27 @@ function updateEventForm(){
   if(extRow)extRow.style.display=isExt?'block':'none';
   if(mtgSchedRow){
     mtgSchedRow.style.display=isMtgSched?'block':'none';
-    // Update label based on event type
+    // Update planned-date label based on event type
     const lbl=mtgSchedRow.querySelector('label');
     if(lbl){
-      if(type==='arb-hearing-scheduled')lbl.textContent='Hearing date';
-      else if(type==='prearb-mtg-scheduled')lbl.textContent='Pre-arb meeting date';
-      else lbl.textContent='Meeting date';
+      if(type==='arb-hearing-scheduled')lbl.textContent='Hearing date (actual meeting date)';
+      else if(type==='prearb-mtg-scheduled')lbl.textContent='Pre-arb meeting date (actual meeting date)';
+      else lbl.textContent='Meeting date (actual meeting date)';
+    }
+  }
+  // Update event-date label for meeting-scheduled types to be clear it's date of agreement
+  const evtDateLabel=document.querySelector('label[for="cf-evt-date"]');
+  const evtDateField=document.getElementById('cf-evt-date');
+  if(evtDateField){
+    // Find the label above the event date field
+    const fieldRow=evtDateField.closest('.form-field');
+    if(fieldRow){
+      const lbl=fieldRow.querySelector('label');
+      if(lbl){
+        if(isMtgSched)lbl.textContent='Date agreed / scheduled';
+        else if(isExt)lbl.textContent='Date of agreement';
+        else lbl.textContent='Event date';
+      }
     }
   }
   // Show auto-deadline preview
@@ -3332,6 +3379,10 @@ function renderGrievances(){
   else if(fsort==='date-asc')list.sort((a,b)=>parseGDate(a.date)-parseGDate(b.date));
   else if(fsort==='activity-desc')list.sort((a,b)=>lastActivity(b)-lastActivity(a));
   else if(fsort==='activity-asc')list.sort((a,b)=>lastActivity(a)-lastActivity(b));
+  else if(fsort==='deadline-asc')list.sort((a,b)=>{const da=a.deadline||'9999-12-31',db=b.deadline||'9999-12-31';return da<db?-1:da>db?1:0;});
+  else if(fsort==='num-asc')list.sort((a,b)=>{const na=parseInt((a.num||'').replace(/[^0-9]/g,''))||0,nb=parseInt((b.num||'').replace(/[^0-9]/g,''))||0;return na-nb;});
+  else if(fsort==='deadline-asc')list.sort((a,b)=>{const da=a.deadline||'9999-12-31',db=b.deadline||'9999-12-31';return da<db?-1:da>db?1:0;});
+  else if(fsort==='num-asc')list.sort((a,b)=>{const na=parseInt((a.num||'').replace(/\D/g,''))||0,nb=parseInt((b.num||'').replace(/\D/g,''))||0;return na-nb;});
   const el=document.getElementById('grievance-list');
   if(!list.length){el.innerHTML='<p style="font-size:13px;color:#aaa;padding:10px">No matching records.</p>';return;}
   const cols=getActiveCols();
@@ -3504,7 +3555,11 @@ function openCaseFile(id){
   const badge=document.createElement('span');
   badge.className='modal-status-badge';
   badge.innerHTML=statusBadge(g.status||'');
-  hdr.appendChild(backBtn);hdr.appendChild(notesBtn);hdr.appendChild(title);hdr.appendChild(badge);
+  // Save status indicator
+  const saveBar=document.createElement('div');
+  saveBar.style.cssText='width:100%;display:flex;align-items:center;justify-content:space-between;margin-top:6px;padding:4px 0';
+  saveBar.innerHTML='<span id="cf-save-status" style="font-size:11px;color:rgba(0,0,0,0.35)">Changes auto-saved to Supabase</span><button class="btn btn-sm" style="font-size:11px;padding:3px 10px" onclick="forceSaveCaseData()">💾 Save now</button>';
+  hdr.appendChild(backBtn);hdr.appendChild(notesBtn);hdr.appendChild(title);hdr.appendChild(badge);hdr.appendChild(saveBar);
   modal.appendChild(hdr);
 
   // Details card
@@ -4814,8 +4869,8 @@ function importCSV(evt){const file=evt.target.files[0];if(!file)return;const rea
 // ── 21-DAY BANNER ─────────────────────────────────────────────────────
 function render21DayBanner(){
   const el=document.getElementById('banner-21day');if(!el)return;
-  const today=todayDate();
-  // Only flag cases still in early pre-filing status — Step/WLR/Arb/Hold are past this window
+  const td=todayDate();
+  // Only flag cases in early pre-filing status within the 21-day window (or just past it, ≤14d expired)
   const EARLY_STATUSES=['Info Gathering','Problem Solving (pre-grievance)'];
   const at_risk=grievances.filter(g=>{
     if(g.closed==='Yes')return false;
@@ -4823,19 +4878,26 @@ function render21DayBanner(){
     if(!EARLY_STATUSES.includes(g.status))return false;
     const filed=parseDate(g.date);if(!filed)return false;
     const deadline=new Date(filed);deadline.setDate(deadline.getDate()+21);
-    const daysLeft=Math.round((deadline-today)/86400000);
-    return daysLeft<=7;
+    const daysLeft=Math.round((deadline-td)/86400000);
+    // Show: closing within 7d, closing today, or expired within 14d — not 200d ago
+    return daysLeft<=7&&daysLeft>=-14;
   });
   if(!at_risk.length){el.style.display='none';return;}
   el.style.display='block';
-  el.innerHTML='<strong>⚠ 21-Day Window Alert:</strong> '+at_risk.map(g=>{
+  el.innerHTML='<strong>⚠ 21-Day Window Alert</strong> — click a case to open it:<br><span style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px">'+at_risk.map(g=>{
     const filed=parseDate(g.date);const deadline=new Date(filed);deadline.setDate(deadline.getDate()+21);
-    const df=Math.round((deadline-today)/86400000);
-    const label=df<0?`<strong>${g.num}</strong> (${g.brief||g.type}) — 21-day window expired ${Math.abs(df)}d ago`:
-                df===0?`<strong>${g.num}</strong> (${g.brief||g.type}) — 21-day window closes TODAY`:
-                `<strong>${g.num}</strong> (${g.brief||g.type}) — ${df}d left`;
-    return label;
-  }).join(' &nbsp;·&nbsp; ');
+    const df=Math.round((deadline-td)/86400000);
+    const urgColor=df<0?'#a32d2d':df===0?'#a32d2d':'#7a3a00';
+    const bgColor=df<0?'#f7c1c1':df===0?'#f7c1c1':'#faeeda';
+    const msg=df<0?`expired ${Math.abs(df)}d ago`:df===0?'closes TODAY':`${df}d left`;
+    return`<a href="#" onclick="openCaseFileFromBanner(${g.id});return false;" style="display:inline-flex;align-items:center;gap:6px;background:${bgColor};border:1px solid ${urgColor}33;border-radius:var(--radius);padding:4px 10px;text-decoration:none;color:${urgColor};font-size:12px;font-weight:600"><span style="font-weight:700">#${escHtml(g.num)}</span><span style="font-weight:400">${escHtml(g.brief||g.type||'')}</span><span style="font-size:11px;opacity:0.8">${msg}</span></a>`;
+  }).join('')+'</span>';
+}
+
+function openCaseFileFromBanner(id){
+  const nav=document.querySelector('.nav-item[onclick*="grievances"]');
+  if(nav)showPanel('grievances',nav);
+  setTimeout(()=>openCaseFile(id),150);
 }
 
 // ── BULK STATUS UPDATE ────────────────────────────────────────────────
@@ -5667,9 +5729,19 @@ async function driveSaveBackup(){
 async function driveSaveMeetingNote(meeting){
   if(!await ensureGoogleToken())return;
   const label=TYPE_LABELS[meeting.type]||meeting.type||'Meeting';
-  const fn=(meeting.date||today())+' — '+label+(meeting.gnum?' #'+meeting.gnum:'')+'.txt';
+  const dateStr=fmtDDMMMYYYY(meeting.date||today());
+  const gnumPart=meeting.gnum?' — G'+meeting.gnum:'';
+  const fn=label+gnumPart+' — '+dateStr+'.txt';
   const content='UPAMM Meeting Note\n'+label+'\nDate: '+(meeting.date||'—')+'\nAttendees: '+(meeting.attendees||'—')+'\nGrievance #: '+(meeting.gnum||'—')+'\nSaved by: '+currentUserName()+'\n\n'+(meeting.body||'');
   await driveUploadFile(DRIVE_MEETINGS,fn,content,'text/plain');
+}
+
+function fmtDDMMMYYYY(isoStr){
+  // Convert YYYY-MM-DD to DDMMMYYYY e.g. 26MAY2026
+  if(!isoStr)return '';
+  const d=parseDate(isoStr);if(!d)return isoStr;
+  const months=['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
+  return String(d.getDate()).padStart(2,'0')+months[d.getMonth()]+d.getFullYear();
 }
 
 async function driveSaveOfficerUpdate(text){
