@@ -2950,11 +2950,30 @@ function updateEventForm(){
     }
   }
   // Show/hide comm row (method + who) for communication event types
+  // All types that show the Method + Who row
   const COMM_TYPES=['union-contact','touchbase-discussed','ad-hoc-mgmt-mtg','unit-pre-grievance-mtg',
     'member-followup','member-meeting','officer-discussed','steward-update'];
-  const isComm=COMM_TYPES.includes(type);
+  const FILING_TYPES=['union-filed-step1','union-filed-step2','union-filed-step3',
+    'union-filed-arb','union-info-request','union-withdrew','union-extension',
+    'mgmt-ack-receipt','mgmt-response-step1','mgmt-response-step2','mgmt-response-step3',
+    'mgmt-response-partial','mgmt-response-overdue','mgmt-extension','mgmt-info-received','mgmt-denied',
+    'step1-meeting-held','step2-meeting-held','step3-meeting-held','prearb-meeting-held','arb-hearing-held',
+    'resolved','on-hold'];
+  const isComm=COMM_TYPES.includes(type)||FILING_TYPES.includes(type);
   const commRow=getU('cf-comm-row');
-  if(commRow)commRow.style.display=isComm?'flex':'none';
+  if(commRow){
+    commRow.style.display=isComm?'flex':'none';
+    // Update labels based on context
+    const methodLbl=commRow.querySelector('label');
+    const whoLbl=commRow.querySelectorAll('label')[1];
+    if(FILING_TYPES.includes(type)){
+      if(methodLbl)methodLbl.textContent='How filed / submitted';
+      if(whoLbl)whoLbl.textContent='Submitted to / received from';
+    } else {
+      if(methodLbl)methodLbl.textContent='Method';
+      if(whoLbl)whoLbl.textContent='Who';
+    }
+  }
   // Populate contacts datalist whenever form is shown
   buildContactDatalist('contacts-datalist');
   // Show auto-deadline preview
@@ -4013,8 +4032,14 @@ function openCaseFile(id){
   try{renderCFTimeline();}catch(e){console.error(e);}
   try{renderCFHealthBanner();}catch(e){console.error(e);}
 
-  const evtDate=document.getElementById('cf-evt-date');
-  if(evtDate)evtDate.value=today();
+  // Set modal form defaults and run form state synchronously
+  const _mSetup=document.getElementById('cf-modal-overlay');
+  if(_mSetup){
+    const _typeEl=_mSetup.querySelector('#cf-evt-type');
+    if(_typeEl){_typeEl.value='union-filed-step1';_typeEl.dispatchEvent(new Event('change'));}
+    const _dateEl=_mSetup.querySelector('#cf-evt-date');
+    if(_dateEl)_dateEl.value=today();
+  }
 }
 
 function renderCFDetails(){
@@ -4188,8 +4213,13 @@ function saveCFEdit(){
   const cfTitle=document.getElementById('cf-title');if(cfTitle)cfTitle.textContent='Grievance '+g.num+' — '+(g.brief||g.type||'');
   const cfBadge=document.getElementById('cf-status-badge');if(cfBadge)cfBadge.innerHTML=statusBadge(g.status);
   renderCFDetails();renderCFActivity();
-  // Ensure conditional form rows reflect the default selected event type
-  setTimeout(updateEventForm,150);
+  // Reset event form to default state on open
+  setTimeout(()=>{
+    const _mR=document.getElementById('cf-modal-overlay');
+    const typeEl=_mR?.querySelector('#cf-evt-type');
+    if(typeEl&&!typeEl.value)typeEl.value='union-filed-step1';
+    updateEventForm();
+  },150);
 }
 
 function closeCaseFile(){
@@ -4217,8 +4247,8 @@ function setCFTab(name,btn){
   if(name==='prep')renderPrepChecklist();
   if(name==='inforeq')renderCFInfoReq();
   if(name==='refs')renderCFRefs();
-  // Re-run form state whenever activity tab is shown so conditional rows render correctly
-  if(name==='activity')setTimeout(updateEventForm,50);
+  // Re-run form state when activity tab is shown
+  if(name==='activity'){const _mT=document.getElementById('cf-modal-overlay');const _tEl=_mT?.querySelector('#cf-evt-type');if(_tEl)_tEl.dispatchEvent(new Event('change'));else updateEventForm();}
 }
 
 function toggleCaseDoc(idx){
