@@ -803,17 +803,12 @@ tr:hover td{background:#faf9f7}
                     <option value="union-withdrew">Grievance withdrawn</option>
                   </optgroup>
                   <optgroup label="Workload Review (WLR)">
-                    <option value="wlr-initial-mtg">WLR initial meeting (union presents)</option>
-                    <option value="wlr-followup-mgmt">WLR follow-up (management presents)</option>
-                    <option value="wlr-additional-mtg">WLR additional follow-up meeting</option>
-                    <option value="wlr-solution-proposed">WLR — solution proposed</option>
-                    <option value="wlr-solution-accepted">WLR — solution accepted / resolved</option>
-                    <option value="wlr-solution-rejected">WLR — solution rejected / escalating</option>
-                  </optgroup>
-                  <optgroup label="Workload Review (WLR)">
-                    <option value="wlr-initial-mtg">WLR initial meeting (union presents)</option>
-                    <option value="wlr-followup-mgmt">WLR follow-up (management presents)</option>
-                    <option value="wlr-additional-mtg">WLR additional follow-up meeting</option>
+                    <option value="wlr-initial-mtg-scheduled">WLR initial meeting scheduled</option>
+                    <option value="wlr-followup-mgmt-scheduled">WLR follow-up meeting scheduled (mgmt presents)</option>
+                    <option value="wlr-additional-mtg-scheduled">WLR additional meeting scheduled</option>
+                    <option value="wlr-initial-mtg">WLR initial meeting held (union presents)</option>
+                    <option value="wlr-followup-mgmt">WLR follow-up held (management presents)</option>
+                    <option value="wlr-additional-mtg">WLR additional follow-up meeting held</option>
                     <option value="wlr-solution-proposed">WLR — solution proposed</option>
                     <option value="wlr-solution-accepted">WLR — solution accepted / resolved</option>
                     <option value="wlr-solution-rejected">WLR — solution rejected / escalating</option>
@@ -2606,7 +2601,10 @@ const EVT_LABELS={
   'steward-update':'Steward update / handoff',
   'ad-hoc-mgmt-mtg':'Ad hoc meeting with management',
   'unit-pre-grievance-mtg':'Unit / pre-grievance meeting',
-  'wlr-initial-mtg':'WLR initial meeting (union presents)',
+  'wlr-initial-mtg-scheduled':'WLR initial meeting scheduled',
+  'wlr-followup-mgmt-scheduled':'WLR follow-up meeting scheduled (mgmt presents)',
+  'wlr-additional-mtg-scheduled':'WLR additional meeting scheduled',
+  'wlr-initial-mtg':'WLR initial meeting held (union presents)',
   'wlr-followup-mgmt':'WLR follow-up (management presents)',
   'wlr-additional-mtg':'WLR additional follow-up meeting',
   'wlr-solution-proposed':'WLR — solution proposed',
@@ -2637,6 +2635,7 @@ const EVT_OWNER={
   // Communication / informal — ball doesn't move
   'member-followup':'','member-meeting':'','touchbase-discussed':'','officer-discussed':'','steward-update':'',
   'ad-hoc-mgmt-mtg':'','unit-pre-grievance-mtg':'',
+  'wlr-initial-mtg-scheduled':'union','wlr-followup-mgmt-scheduled':'mgmt','wlr-additional-mtg-scheduled':'',
   'wlr-initial-mtg':'union','wlr-followup-mgmt':'mgmt','wlr-additional-mtg':'',
   'wlr-solution-proposed':'','wlr-solution-accepted':'union','wlr-solution-rejected':'union'
 };
@@ -2658,6 +2657,7 @@ const EVT_COLORS={
   'member-followup':'#4285f4','member-meeting':'#4285f4',
   'touchbase-discussed':'var(--teal)','officer-discussed':'var(--purple)','steward-update':'var(--amber)',
   'ad-hoc-mgmt-mtg':'var(--teal)','unit-pre-grievance-mtg':'var(--teal)',
+  'wlr-initial-mtg-scheduled':'#a78bfa','wlr-followup-mgmt-scheduled':'#a78bfa','wlr-additional-mtg-scheduled':'#a78bfa',
   'wlr-initial-mtg':'#7c3aed','wlr-followup-mgmt':'#7c3aed','wlr-additional-mtg':'#7c3aed',
   'wlr-solution-proposed':'#7c3aed','wlr-solution-accepted':'var(--teal)','wlr-solution-rejected':'var(--red)'
 };
@@ -2682,6 +2682,7 @@ const EVT_AUTO_DEADLINES={
   'prearb-mtg-scheduled':[],'arb-hearing-scheduled':[],'prearb-meeting-held':[],'step3-filed':[],
   'member-followup':[],'member-meeting':[],'touchbase-discussed':[],'officer-discussed':[],'steward-update':[],
   'ad-hoc-mgmt-mtg':[],'unit-pre-grievance-mtg':[],
+  'wlr-initial-mtg-scheduled':[],'wlr-followup-mgmt-scheduled':[],'wlr-additional-mtg-scheduled':[],
   'wlr-initial-mtg':[],'wlr-followup-mgmt':[],'wlr-additional-mtg':[],
   'wlr-solution-proposed':[],'wlr-solution-accepted':[],'wlr-solution-rejected':[],
   'mgmt-ack-receipt':[]
@@ -2840,6 +2841,9 @@ function renderCFHealthBanner(){
       'mgmt-denied':'Consider next step: Step 2/3 appeal or arbitration.',
       'union-filed-arb':'Prepare for arbitration. Confirm hearing date and witnesses.',
       'arb-hearing-held':'Await arbitrator decision (typically 30d).',
+      'wlr-initial-mtg-scheduled':'Confirm WLR initial meeting date. Prepare union data and workload documentation.',
+      'wlr-followup-mgmt-scheduled':'Confirm WLR follow-up date. Prepare to evaluate management’s presentation.',
+      'wlr-additional-mtg-scheduled':'Confirm meeting date. Document all prior proposals and positions.',
       'wlr-initial-mtg':'Schedule WLR follow-up — management should present their data/response.',
       'wlr-followup-mgmt':'Evaluate management’s presentation. Schedule additional WLR meeting or propose solution.',
       'wlr-additional-mtg':'Continue WLR process. Document all positions and proposed solutions.',
@@ -2884,7 +2888,7 @@ function renderCFHealthBanner(){
 let timelineView='art16'; // 'art16' | 'all' | 'comms' | 'wlr'
 
 const COMMS_TYPES=['member-followup','member-meeting','touchbase-discussed','officer-discussed','steward-update','note','member','action','ad-hoc-mgmt-mtg','unit-pre-grievance-mtg','union-contact'];
-const WLR_TYPES=['wlr-initial-mtg','wlr-followup-mgmt','wlr-additional-mtg','wlr-solution-proposed','wlr-solution-accepted','wlr-solution-rejected'];
+const WLR_TYPES=['wlr-initial-mtg-scheduled','wlr-followup-mgmt-scheduled','wlr-additional-mtg-scheduled','wlr-initial-mtg','wlr-followup-mgmt','wlr-additional-mtg','wlr-solution-proposed','wlr-solution-accepted','wlr-solution-rejected'];
 const ART16_TYPES=['union-filed-step1','union-filed-step2','union-filed-step3','union-filed-arb','union-info-request','union-extension','union-withdrew',
   'step1-mtg-scheduled','step2-mtg-scheduled','step3-mtg-scheduled','prearb-mtg-scheduled','arb-hearing-scheduled',
   'step1-meeting-held','step2-meeting-held','step3-meeting-held','prearb-meeting-held','arb-hearing-held',
@@ -3016,7 +3020,7 @@ function updateEventForm(){
   const type=typeEl.value||'';
   const extRow=getU('cf-ext-row');
   const mtgSchedRow=getU('cf-mtg-sched-row');
-  const isMtgSched=['step1-mtg-scheduled','step2-mtg-scheduled','step3-mtg-scheduled','prearb-mtg-scheduled','arb-hearing-scheduled'].includes(type);
+  const isMtgSched=['step1-mtg-scheduled','step2-mtg-scheduled','step3-mtg-scheduled','prearb-mtg-scheduled','arb-hearing-scheduled','wlr-initial-mtg-scheduled','wlr-followup-mgmt-scheduled','wlr-additional-mtg-scheduled'].includes(type);
   const isExt=type==='union-extension'||type==='mgmt-extension';
   if(extRow)extRow.style.display=isExt?'block':'none';
   if(mtgSchedRow){
@@ -3050,6 +3054,7 @@ function updateEventForm(){
     'mgmt-ack-receipt','mgmt-response-step1','mgmt-response-step2','mgmt-response-step3',
     'mgmt-response-partial','mgmt-response-overdue','mgmt-extension','mgmt-info-received','mgmt-denied',
     'step1-meeting-held','step2-meeting-held','step3-meeting-held','prearb-meeting-held','arb-hearing-held',
+    'wlr-initial-mtg-scheduled','wlr-followup-mgmt-scheduled','wlr-additional-mtg-scheduled',
     'wlr-initial-mtg','wlr-followup-mgmt','wlr-additional-mtg','wlr-solution-proposed','wlr-solution-accepted','wlr-solution-rejected',
     'resolved','on-hold'];
   const isComm=COMM_TYPES.includes(type)||FILING_TYPES.includes(type);
@@ -3955,17 +3960,12 @@ function openCaseFile(id){
                     <option value="union-withdrew">Grievance withdrawn</option>
                   </optgroup>
                   <optgroup label="Workload Review (WLR)">
-                    <option value="wlr-initial-mtg">WLR initial meeting (union presents)</option>
-                    <option value="wlr-followup-mgmt">WLR follow-up (management presents)</option>
-                    <option value="wlr-additional-mtg">WLR additional follow-up meeting</option>
-                    <option value="wlr-solution-proposed">WLR — solution proposed</option>
-                    <option value="wlr-solution-accepted">WLR — solution accepted / resolved</option>
-                    <option value="wlr-solution-rejected">WLR — solution rejected / escalating</option>
-                  </optgroup>
-                  <optgroup label="Workload Review (WLR)">
-                    <option value="wlr-initial-mtg">WLR initial meeting (union presents)</option>
-                    <option value="wlr-followup-mgmt">WLR follow-up (management presents)</option>
-                    <option value="wlr-additional-mtg">WLR additional follow-up meeting</option>
+                    <option value="wlr-initial-mtg-scheduled">WLR initial meeting scheduled</option>
+                    <option value="wlr-followup-mgmt-scheduled">WLR follow-up meeting scheduled (mgmt presents)</option>
+                    <option value="wlr-additional-mtg-scheduled">WLR additional meeting scheduled</option>
+                    <option value="wlr-initial-mtg">WLR initial meeting held (union presents)</option>
+                    <option value="wlr-followup-mgmt">WLR follow-up held (management presents)</option>
+                    <option value="wlr-additional-mtg">WLR additional follow-up meeting held</option>
                     <option value="wlr-solution-proposed">WLR — solution proposed</option>
                     <option value="wlr-solution-accepted">WLR — solution accepted / resolved</option>
                     <option value="wlr-solution-rejected">WLR — solution rejected / escalating</option>
