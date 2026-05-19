@@ -935,7 +935,7 @@ tr:hover td{background:#faf9f7}
         </div>
         <div class="form-row">
           <div class="form-field" style="flex:2"><label>How requested</label>
-            <select id="ir-how"><option>Written — email</option><option>Written — letter</option><option>Verbal at meeting</option><option>Formal written request</option></select>
+            <select id="ir-how"><option>Written — email</option><option>Written — letter</option><option>Verbal at meeting</option><option>Formal written request</option><option>Other (see notes)</option></select>
           </div>
           <div class="form-field"><label>Sent to</label><input type="text" id="ir-to" placeholder="Name / title"></div>
           <div class="form-field" style="max-width:160px"><label>Response due (est.)</label><input type="date" id="ir-due" placeholder="Reasonable time"></div>
@@ -3572,47 +3572,87 @@ function addInfoRequest(){
 function renderCFInfoReq(){
   if(!activeCaseId)return;
   const cd=getCaseData(activeCaseId);
-  const _m=document.getElementById('cf-modal-overlay');const _mOpen=_m&&_m.style.display!=='none';const el=(_mOpen&&_m.querySelector('#cf-inforeq-list'))||document.getElementById('cf-inforeq-list');
+  const _m=document.getElementById('cf-modal-overlay');const _mOpen=_m&&_m.style.display!=='none';
+  const el=(_mOpen&&_m.querySelector('#cf-inforeq-list'))||document.getElementById('cf-inforeq-list');
+  if(!el)return;
   if(!cd.infoRequests||!cd.infoRequests.length){
-    el.innerHTML='<div class="card" style="color:#aaa;font-size:13px;text-align:center;padding:20px">No information requests logged for this case.<br><span style="font-size:12px;margin-top:4px;display:block">Art. 16 Sec. 3: upon written request from the Union, the Employer shall provide relevant information necessary to properly process a grievance.</span></div>';return;
+    el.innerHTML='<div class="card" style="color:#aaa;font-size:13px;text-align:center;padding:24px">No information requests logged for this case.<br><span style="font-size:12px;margin-top:6px;display:block;line-height:1.6">Art. 16 Sec. 3: upon written request from the Union, the Employer shall provide relevant information necessary to properly process a grievance.</span></div>';return;
   }
-  el.innerHTML='<div class="card">'+cd.infoRequests.map((r,i)=>{
+  // Paired view: each IR is a two-column card — Filed (left) | Response (right)
+  el.innerHTML=cd.infoRequests.map((r,i)=>{
     const df=r.due?diffDays(r.due):null;
-    let dueHtml='No deadline set',dueCls='';
-    if(r.received){dueHtml='<span style="color:var(--teal);font-weight:600">✓ Received '+r.receivedDate+'</span>';}
-    else if(r.due){
-      if(df<0){dueCls='dl-red';dueHtml='Overdue by '+Math.abs(df)+'d (due '+fmtDisplay(r.due)+')';}
-      else if(df===0){dueCls='dl-red';dueHtml='Due TODAY';}
-      else if(df<=7){dueCls='dl-amber';dueHtml='Due in '+df+'d ('+fmtDisplay(r.due)+')';}
-      else dueHtml='Due '+fmtDisplay(r.due);
-    }
-    return`<div style="padding:10px 0;border-bottom:1px solid #f0ede8">
-      <div style="display:flex;align-items:flex-start;gap:10px;flex-wrap:wrap">
-        <div style="flex:1">
-          <div style="font-size:13px;font-weight:600;color:var(--text)">${escHtml(r.what)}</div>
-          <div style="font-size:11px;color:var(--text3);margin-top:3px">Requested ${r.date||'—'} · ${r.how} · To: ${r.to||'—'}</div>
-          <div class="${dueCls}" style="font-size:12px;margin-top:4px">${dueHtml}</div>
-          ${r.url?`<div style="margin-top:4px"><a href="${escHtml(r.url)}" target="_blank" class="btn btn-sm btn-green" style="font-size:11px">📂 View request document</a></div>`:''}
+    const statusColor=r.received?'var(--teal)':df!==null&&df<=0?'var(--red)':df!==null&&df<=7?'var(--amber)':'var(--text3)';
+    const statusLabel=r.received?'✓ Received '+fmtDisplay(r.receivedDate||''):
+      df===null?'No deadline set':df<0?'Overdue '+Math.abs(df)+'d':df===0?'Due TODAY':'Due in '+df+'d ('+fmtDisplay(r.due)+')';
+    // Response section — expandable if not yet received
+    const respSection=r.received?
+      `<div style="font-size:12px;color:var(--teal);font-weight:600;margin-bottom:6px">✓ Response received ${fmtDisplay(r.receivedDate||'')}</div>
+       ${r.responseUrl?`<a href="${escHtml(r.responseUrl)}" target="_blank" class="btn btn-sm btn-green" style="font-size:11px;margin-bottom:6px">📂 View response document</a>`:''}
+       ${r.responseNotes?`<div style="font-size:12px;color:var(--text2);margin-top:4px">${escHtml(r.responseNotes)}</div>`:''}`
+      :
+      `<div style="font-size:12px;color:${statusColor};font-weight:600;margin-bottom:10px">${statusLabel}</div>
+       <div style="display:flex;flex-direction:column;gap:6px">
+         <input type="date" id="ir-resp-date-${i}" placeholder="Response date" style="font-size:12px;padding:4px 8px;border:1px solid var(--border);border-radius:var(--radius)">
+         <input type="text" id="ir-resp-url-${i}" placeholder="Drive link (response doc)..." style="font-size:12px;padding:4px 8px;border:1px solid var(--border);border-radius:var(--radius)">
+         <input type="text" id="ir-resp-notes-${i}" placeholder="Notes on response..." style="font-size:12px;padding:4px 8px;border:1px solid var(--border);border-radius:var(--radius)">
+         <button class="btn btn-sm btn-green" style="font-size:11px;align-self:flex-start" onclick="markIRReceivedFull(${activeCaseId},${i})">✓ Mark Received</button>
+       </div>`;
+    return`<div class="card" style="padding:0;overflow:hidden;margin-bottom:12px">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:#f9f8f6;border-bottom:1px solid var(--border)">
+        <div style="font-size:13px;font-weight:700;color:var(--navy);flex:1">${escHtml(r.what)}</div>
+        <div style="display:flex;gap:6px;flex-shrink:0">
+          <button class="btn btn-sm btn-danger" style="font-size:11px" onclick="delIR(${activeCaseId},${i})">✕ Remove</button>
         </div>
-        <div style="display:flex;gap:4px;flex-shrink:0">
-          ${!r.received?`<button class="btn btn-sm btn-green" style="font-size:11px" onclick="markIRReceived(${activeCaseId},${i})">✓ Received</button>`:''}
-          <button class="btn btn-sm btn-danger" onclick="delIR(${activeCaseId},${i})">✕</button>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:0">
+        <!-- Filed side -->
+        <div style="padding:12px 14px;border-right:2px solid var(--border)">
+          <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">📤 Filed</div>
+          <div style="font-size:12px;color:var(--text2);margin-bottom:4px">
+            <span style="color:var(--text3)">Date:</span> ${fmtDisplay(r.date||'')||'—'}
+          </div>
+          <div style="font-size:12px;color:var(--text2);margin-bottom:4px">
+            <span style="color:var(--text3)">How:</span> ${escHtml(r.how||'—')}
+          </div>
+          <div style="font-size:12px;color:var(--text2);margin-bottom:8px">
+            <span style="color:var(--text3)">To:</span> ${escHtml(r.to||'—')}
+          </div>
+          ${r.url?`<a href="${escHtml(r.url)}" target="_blank" class="btn btn-sm" style="font-size:11px">📂 Filed IR doc</a>`:'<span style="font-size:11px;color:#bbb">No document linked</span>'}
+          ${r.notes?`<div style="font-size:11px;color:var(--text3);margin-top:6px;font-style:italic">${escHtml(r.notes)}</div>`:''}
+        </div>
+        <!-- Response side -->
+        <div style="padding:12px 14px;background:${r.received?'#f0faf4':'#fffdf9'}">
+          <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">📥 Response</div>
+          ${respSection}
         </div>
       </div>
     </div>`;
-  }).join('')+'</div>';
+  }).join('');
 }
 
-function markIRReceived(gId,idx){
+function markIRReceivedFull(gId,idx){
   const cd=getCaseData(gId);if(!cd.infoRequests[idx])return;
-  cd.infoRequests[idx].received=true;cd.infoRequests[idx].receivedDate=today();
-  // Log in event log
-  cd.notes.push({id:Date.now(),text:'Information request fulfilled: '+cd.infoRequests[idx].what,type:'mgmt-info-received',date:today(),ts:new Date().toISOString()});
-  // Mark corresponding mgmt owes item received
+  const _m=document.getElementById('cf-modal-overlay');const _mOpen=_m&&_m.style.display!=='none';
+  const getEl=id=>(_mOpen&&_m.querySelector('#'+id))||document.getElementById(id);
+  const respDate=getEl('ir-resp-date-'+idx)?.value||today();
+  const respUrl=getEl('ir-resp-url-'+idx)?.value.trim()||'';
+  const respNotes=getEl('ir-resp-notes-'+idx)?.value.trim()||'';
+  cd.infoRequests[idx].received=true;
+  cd.infoRequests[idx].receivedDate=respDate;
+  cd.infoRequests[idx].responseUrl=respUrl;
+  cd.infoRequests[idx].responseNotes=respNotes;
+  // Log event
+  cd.notes.push({id:Date.now(),type:'mgmt-info-received',date:respDate,ts:new Date().toISOString(),
+    text:'Information request fulfilled: '+cd.infoRequests[idx].what+(respNotes?' — '+respNotes:''),
+    url:respUrl,docLabel:'IR Response'});
+  // Mark corresponding mgmt owes received
   const g=grievances.find(x=>x.id===gId);
-  if(g){const mo=mgmtOwes.find(m=>m.gnum===g.num&&m.type==='Information request (Art. 16 Sec. 3)'&&!m.received);if(mo){mo.received=true;mo.receivedDate=today();}}
-  sbSaveCaseData(activeCaseId);renderCFInfoReq();renderCFActivity();
+  if(g){const mo=mgmtOwes.find(m=>m.gnum===g.num&&(m.type||'').includes('Information')&&!m.received);
+    if(mo){mo.received=true;mo.receivedDate=respDate;sbSaveMgmtOwes(mo);}}
+  sbSaveCaseData(gId);renderCFInfoReq();renderCFActivity();renderCFHealthBanner();
 }
+
+function markIRReceived(gId,idx){markIRReceivedFull(gId,idx);}
 
 function delIR(gId,idx){
   const cd=getCaseData(gId);cd.infoRequests.splice(idx,1);sbSaveCaseData(gId);renderCFInfoReq();
@@ -3998,7 +4038,7 @@ function openCaseFile(id){
         </div>
         <div class="form-row">
           <div class="form-field" style="flex:2"><label>How requested</label>
-            <select id="ir-how"><option>Written — email</option><option>Written — letter</option><option>Verbal at meeting</option><option>Formal written request</option></select>
+            <select id="ir-how"><option>Written — email</option><option>Written — letter</option><option>Verbal at meeting</option><option>Formal written request</option><option>Other (see notes)</option></select>
           </div>
           <div class="form-field"><label>Sent to</label><input type="text" id="ir-to" placeholder="Name / title"></div>
           <div class="form-field" style="max-width:160px"><label>Response due (est.)</label><input type="date" id="ir-due"></div>
@@ -5759,7 +5799,42 @@ function renderMgmtOwes(){
 
 function markMoReceived(id){
   const x=mgmtOwes.find(i=>i.id===id);if(!x)return;
-  x.received=true;x.receivedDate=today();sbSaveMgmtOwes(x);renderMgmtOwes();
+  x.received=true;x.receivedDate=today();
+  sbSaveMgmtOwes(x);
+  // Auto-log matching event in the linked case file
+  if(x.gnum){
+    const g=grievances.find(g=>g.num===x.gnum||g.num===x.gnum.replace(/^G/,''));
+    if(g){
+      const cd=getCaseData(g.id);
+      // Map obligation type to event type
+      const typeMap={
+        'Step response due':'mgmt-response-received',
+        'Information request (Art. 16 Sec. 3)':'mgmt-info-received',
+        'Mgmt: schedule Step 1 meeting (Art. 16)':'mgmt-ack-receipt',
+        'Mgmt: schedule Step 2 meeting (Art. 16)':'mgmt-ack-receipt',
+        'Mgmt: schedule Step 3 meeting (Art. 16)':'mgmt-ack-receipt',
+      };
+      // Try to find event type from label text
+      let evtType='mgmt-response-received';
+      Object.entries(typeMap).forEach(([k,v])=>{if((x.what||'').includes(k)||(x.type||'').includes(k))evtType=v;});
+      // Detect step from label
+      if(x.what&&x.what.includes('Step 1'))evtType='mgmt-response-step1';
+      else if(x.what&&x.what.includes('Step 2'))evtType='mgmt-response-step2';
+      else if(x.what&&x.what.includes('Step 3'))evtType='mgmt-response-step3';
+      else if(x.type==='Information request (Art. 16 Sec. 3)'||x.what?.includes('info request'))evtType='mgmt-info-received';
+      cd.notes.push({id:Date.now(),type:evtType,date:today(),ts:new Date().toISOString(),
+        text:(EVT_LABELS[evtType]||'Mgmt response received')+' — logged from Mgmt Owes Us: '+escHtml(x.what||'')});
+      sbSaveCaseData(g.id);
+      // If case file is open for this case, refresh it
+      if(activeCaseId===g.id){renderCFActivity();renderCFHealthBanner();renderCFTimeline();}
+    }
+  }
+  renderMgmtOwes();
+  // Toast confirmation
+  const toast=document.createElement('div');
+  toast.style.cssText='position:fixed;bottom:24px;right:24px;background:var(--navy);color:#fff;padding:10px 18px;border-radius:var(--radius);font-size:13px;z-index:9999;box-shadow:0 4px 12px rgba(0,0,0,0.2)';
+  toast.textContent='✓ Marked received'+(x.gnum?' — event logged in case #'+x.gnum:'');
+  document.body.appendChild(toast);setTimeout(()=>toast.remove(),3000);
 }
 function delMgmtOwes(id){if(!confirm('Remove?'))return;sbDeleteMgmtOwes(id);renderMgmtOwes();}
 
