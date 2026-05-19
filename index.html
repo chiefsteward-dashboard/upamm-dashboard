@@ -671,7 +671,7 @@ tr:hover td{background:#faf9f7}
     <div class="card">
       <div class="card-title">Add New Grievance</div>
       <div class="form-row">
-        <div class="form-field"><label>Grievance #</label><input type="text" id="g-num" placeholder="39"></div>
+        <div class="form-field"><label>Grievance # <span style="font-weight:400;color:var(--text3)">(optional)</span></label><input type="text" id="g-num" placeholder="e.g. 32-2026 or leave blank"></div>
         <div class="form-field"><label>Date Filed</label><input type="date" id="g-date"></div>
         <div class="form-field"><label>Last Name</label><input type="text" id="g-last" placeholder="Last or Union"></div>
         <div class="form-field"><label>First Name</label><input type="text" id="g-first" placeholder="First name"></div>
@@ -1408,6 +1408,34 @@ async function sbSaveCaseData(gId){
   const {error}=await sb.from('case_data').upsert({grievance_id:gId,notes:cd.notes||[],docs:cd.docs||[],info_requests:cd.infoRequests||[],last_edited_by:currentUserName(),last_edited_at:new Date().toISOString()},{onConflict:'grievance_id'});
   if(error){console.error('case_data save error',error);updateCaseSaveStatus('error');}
   else{updateCaseSaveStatus('saved');}
+}
+
+function deleteCaseStep1(){
+  const btn=document.getElementById('cf-delete-btn');
+  if(!btn)return;
+  const g=grievances.find(x=>x.id==activeCaseId);
+  btn.textContent='⚠ Confirm delete #'+(g?.num||'?')+'?';
+  btn.style.background='var(--red)';btn.style.color='#fff';btn.style.border='none';
+  btn.onclick=deleteCaseStep2;
+  // Auto-reset after 5 seconds if not confirmed
+  setTimeout(()=>{
+    if(btn&&btn.onclick===deleteCaseStep2){
+      btn.textContent='🗑 Delete case';btn.style.background='';btn.style.color='';btn.style.border='';btn.onclick=deleteCaseStep1;
+    }
+  },5000);
+}
+
+function deleteCaseStep2(){
+  const g=grievances.find(x=>x.id==activeCaseId);
+  if(!g)return;
+  closeCaseFile();
+  sbDeleteGrievance(g.id);
+  populateFilters();renderGrievances();renderGMetrics();
+  // Toast
+  const toast=document.createElement('div');
+  toast.style.cssText='position:fixed;bottom:24px;right:24px;background:#a32d2d;color:#fff;padding:10px 18px;border-radius:var(--radius);font-size:13px;z-index:9999';
+  toast.textContent='Case #'+(g.num||'?')+' deleted';
+  document.body.appendChild(toast);setTimeout(()=>toast.remove(),3000);
 }
 
 function updateCaseSaveStatus(state){
@@ -3737,7 +3765,7 @@ function renderGrievances(){
   list.forEach(g=>{
     let dlHtml='—',dlCls='';
     if(g.deadline){const df=diffDays(g.deadline);dlHtml=g.deadline;if(df<0){dlCls='overdue';dlHtml+=' <small>(overdue)</small>';}else if(df===0){dlCls='overdue';dlHtml='Today';}else if(df!==null&&df<=7)dlCls='overdue';}
-    const imp=g.imported?'<span class="badge b-import">Imp</span> ':'';
+    const imp=g.imported?`<span class="badge b-import" style="cursor:pointer" title="Click to clear import flag" onclick="clearImportFlag(${g.id});event.stopPropagation()">Imp ✕</span> `:'';
     const member=[g.firstName,g.lastName].filter(Boolean).join(' ')||'—';
     const cd=caseData[g.id];const noteCount=cd?cd.notes.length:0;
     const notesBadge=noteCount>0?`<span class="badge b-wlr">${noteCount}</span>`:'<span style="color:#ddd;font-size:11px">—</span>';
@@ -3762,7 +3790,7 @@ function renderGrievances(){
     };
     html+=`<tr><td><input type="checkbox" class="bulk-cb" data-id="${g.id}" ${isSelected?'checked':''} onchange="toggleBulkSelect(${g.id},this)"></td>`;
     cols.forEach(c=>html+=CELL[c.key]||'<td>—</td>');
-    html+=`<td><button class="btn btn-sm btn-danger" onclick="delG(${g.id})">✕</button></td></tr>`;
+    html+=`</tr>`;
   });
   html+='</tbody></table>';el.innerHTML=html;
 }
@@ -3849,7 +3877,13 @@ function resetColSettings(){
 }
 
 function addGrievance(){
-  const num=document.getElementById('g-num').value.trim();if(!num)return alert('Grievance # required');
+  let num=document.getElementById('g-num').value.trim();
+  if(!num){
+    // Auto-assign PENDING-N placeholder
+    const existing=grievances.map(g=>g.num).filter(n=>n.startsWith('PENDING-'));
+    const maxN=existing.reduce((m,n)=>{const v=parseInt(n.replace('PENDING-',''))||0;return v>m?v:m;},0);
+    num='PENDING-'+(maxN+1);
+  }
   const rd=document.getElementById('g-date').value;let fmt='';if(rd){const d=new Date(rd);fmt=`${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')}/${d.getFullYear()}`;}
   const newG={id:Date.now(),num,date:fmt,lastName:document.getElementById('g-last').value.trim(),firstName:document.getElementById('g-first').value.trim(),steward:document.getElementById('g-steward').value.trim(),status:document.getElementById('g-status').value,type:document.getElementById('g-type').value,articles:document.getElementById('g-articles').value.trim(),deadline:document.getElementById('g-deadline').value,appManager:document.getElementById('g-app').value.trim(),serviceLineDirector:document.getElementById('g-sld').value.trim(),brief:document.getElementById('g-brief').value.trim(),closed:'No',imported:false,disposition:'',subType:''};
   grievances.unshift(newG);
@@ -3859,7 +3893,13 @@ function addGrievance(){
   ['g-num','g-date','g-last','g-first','g-steward','g-articles','g-deadline','g-app','g-sld','g-brief'].forEach(id=>document.getElementById(id).value='');
 }
 
-function delG(id){if(!confirm('Remove?'))return;sbDeleteGrievance(id);populateFilters();renderGrievances();renderGMetrics();}
+function delG(id){deleteCaseStep1();}// Delete now handled via two-step in case file
+
+function clearImportFlag(id){
+  const g=grievances.find(x=>x.id===id);if(!g)return;
+  g.imported=false;
+  sbSaveGrievance(g);renderGrievances();
+}
 
 // ── CASE FILE ────────────────────────────────────────────────────────
 function openCaseFile(id){
@@ -3903,7 +3943,7 @@ function openCaseFile(id){
   // Save status indicator
   const saveBar=document.createElement('div');
   saveBar.style.cssText='width:100%;display:flex;align-items:center;justify-content:space-between;margin-top:6px;padding:4px 0';
-  saveBar.innerHTML='<span id="cf-save-status" style="font-size:11px;color:rgba(0,0,0,0.35)">Changes auto-saved to Supabase</span><button class="btn btn-sm" style="font-size:11px;padding:3px 10px" onclick="forceSaveCaseData()">💾 Save now</button>';
+  saveBar.innerHTML='<span id="cf-save-status" style="font-size:11px;color:rgba(0,0,0,0.35)">Changes auto-saved to Supabase</span><div style="display:flex;gap:8px"><button class="btn btn-sm" style="font-size:11px;padding:3px 10px" onclick="forceSaveCaseData()">💾 Save now</button><button class="btn btn-sm btn-danger" style="font-size:11px;padding:3px 10px" onclick="deleteCaseStep1()" id="cf-delete-btn">🗑 Delete case</button></div>';
   hdr.appendChild(backBtn);hdr.appendChild(notesBtn);hdr.appendChild(title);hdr.appendChild(badge);hdr.appendChild(saveBar);
   modal.appendChild(hdr);
 
