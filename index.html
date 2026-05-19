@@ -720,6 +720,7 @@ tr:hover td{background:#faf9f7}
           <option value="activity-desc">↓ Last activity</option>
           <option value="activity-asc">↑ Last activity</option>
           <option value="num-asc">↑ Grievance # (asc)</option>
+          <option value="num-desc">↓ Grievance # (desc)</option>
         </select>
         <input type="text" id="f-search" placeholder="Search..." oninput="renderGrievances()" style="flex:2">
       </div>
@@ -3721,9 +3722,12 @@ function renderGrievances(){
   else if(fsort==='activity-desc')list.sort((a,b)=>lastActivity(b)-lastActivity(a));
   else if(fsort==='activity-asc')list.sort((a,b)=>lastActivity(a)-lastActivity(b));
   else if(fsort==='deadline-asc')list.sort((a,b)=>{const da=a.deadline||'9999-12-31',db=b.deadline||'9999-12-31';return da<db?-1:da>db?1:0;});
-  else if(fsort==='num-asc')list.sort((a,b)=>{const na=parseInt((a.num||'').replace(/[^0-9]/g,''))||0,nb=parseInt((b.num||'').replace(/[^0-9]/g,''))||0;return na-nb;});
+  else if(fsort==='num-asc'||fsort==='num-desc'){
+    const parseNum=g=>{const m=(g.num||'').match(/(\d+)-(\d{4})/);return m?{n:parseInt(m[1]),y:parseInt(m[2])}:{n:0,y:0};};
+    list.sort((a,b)=>{const pa=parseNum(a),pb=parseNum(b);const r=pa.y!==pb.y?pa.y-pb.y:pa.n-pb.n;return fsort==='num-desc'?-r:r;});
+  }
   else if(fsort==='deadline-asc')list.sort((a,b)=>{const da=a.deadline||'9999-12-31',db=b.deadline||'9999-12-31';return da<db?-1:da>db?1:0;});
-  else if(fsort==='num-asc')list.sort((a,b)=>{const na=parseInt((a.num||'').replace(/\D/g,''))||0,nb=parseInt((b.num||'').replace(/\D/g,''))||0;return na-nb;});
+
   const el=document.getElementById('grievance-list');
   if(!list.length){el.innerHTML='<p style="font-size:13px;color:#aaa;padding:10px">No matching records.</p>';return;}
   const cols=getActiveCols();
