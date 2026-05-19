@@ -776,6 +776,7 @@ tr:hover td{background:#faf9f7}
               <button id="tl-btn-art16" onclick="setTimelineView('art16')" style="padding:4px 9px;border:none;background:var(--navy);color:#fff;font-size:10px;font-family:'Georgia',serif;cursor:pointer">Art. 16</button>
               <button id="tl-btn-all" onclick="setTimelineView('all')" style="padding:4px 9px;border:none;background:#fff;color:var(--text3);font-size:10px;font-family:'Georgia',serif;cursor:pointer">All</button>
               <button id="tl-btn-comms" onclick="setTimelineView('comms')" style="padding:4px 9px;border:none;background:#fff;color:var(--text3);font-size:10px;font-family:'Georgia',serif;cursor:pointer">Comms</button>
+              <button id="tl-btn-wlr" onclick="setTimelineView('wlr')" style="padding:4px 9px;border:none;background:#fff;color:var(--text3);font-size:10px;font-family:'Georgia',serif;cursor:pointer">WLR</button>
             </div>
           </div>
           <div style="display:flex;gap:12px;margin-bottom:12px;flex-wrap:wrap" id="cf-timeline-legend">
@@ -800,6 +801,22 @@ tr:hover td{background:#faf9f7}
                     <option value="union-info-request">Information request filed (Art. 16 Sec. 3)</option>
                     <option value="union-extension">Extension agreed (we granted)</option>
                     <option value="union-withdrew">Grievance withdrawn</option>
+                  </optgroup>
+                  <optgroup label="Workload Review (WLR)">
+                    <option value="wlr-initial-mtg">WLR initial meeting (union presents)</option>
+                    <option value="wlr-followup-mgmt">WLR follow-up (management presents)</option>
+                    <option value="wlr-additional-mtg">WLR additional follow-up meeting</option>
+                    <option value="wlr-solution-proposed">WLR — solution proposed</option>
+                    <option value="wlr-solution-accepted">WLR — solution accepted / resolved</option>
+                    <option value="wlr-solution-rejected">WLR — solution rejected / escalating</option>
+                  </optgroup>
+                  <optgroup label="Workload Review (WLR)">
+                    <option value="wlr-initial-mtg">WLR initial meeting (union presents)</option>
+                    <option value="wlr-followup-mgmt">WLR follow-up (management presents)</option>
+                    <option value="wlr-additional-mtg">WLR additional follow-up meeting</option>
+                    <option value="wlr-solution-proposed">WLR — solution proposed</option>
+                    <option value="wlr-solution-accepted">WLR — solution accepted / resolved</option>
+                    <option value="wlr-solution-rejected">WLR — solution rejected / escalating</option>
                   </optgroup>
                   <optgroup label="Meetings — Scheduled">
                     <option value="step1-mtg-scheduled">Step 1 meeting scheduled</option>
@@ -2588,7 +2605,13 @@ const EVT_LABELS={
   'touchbase-discussed':'Discussed at mgmt touchbase','officer-discussed':'Discussed at officer meeting',
   'steward-update':'Steward update / handoff',
   'ad-hoc-mgmt-mtg':'Ad hoc meeting with management',
-  'unit-pre-grievance-mtg':'Unit / pre-grievance meeting'
+  'unit-pre-grievance-mtg':'Unit / pre-grievance meeting',
+  'wlr-initial-mtg':'WLR initial meeting (union presents)',
+  'wlr-followup-mgmt':'WLR follow-up (management presents)',
+  'wlr-additional-mtg':'WLR additional follow-up meeting',
+  'wlr-solution-proposed':'WLR — solution proposed',
+  'wlr-solution-accepted':'WLR — solution accepted / resolved',
+  'wlr-solution-rejected':'WLR — solution rejected / escalating'
 };
 // owner: 'union'=purple, 'mgmt'=teal
 const EVT_OWNER={
@@ -2613,7 +2636,9 @@ const EVT_OWNER={
   'mgmt-ack-receipt':'both',// acknowledged — no ball movement
   // Communication / informal — ball doesn't move
   'member-followup':'','member-meeting':'','touchbase-discussed':'','officer-discussed':'','steward-update':'',
-  'ad-hoc-mgmt-mtg':'','unit-pre-grievance-mtg':''
+  'ad-hoc-mgmt-mtg':'','unit-pre-grievance-mtg':'',
+  'wlr-initial-mtg':'union','wlr-followup-mgmt':'mgmt','wlr-additional-mtg':'',
+  'wlr-solution-proposed':'','wlr-solution-accepted':'union','wlr-solution-rejected':'union'
 };
 const EVT_COLORS={
   'union-filed-step1':'#534ab7','union-filed-step2':'#534ab7','union-filed-step3':'#534ab7',
@@ -2632,7 +2657,9 @@ const EVT_COLORS={
   'mgmt-ack-receipt':'var(--teal)',
   'member-followup':'#4285f4','member-meeting':'#4285f4',
   'touchbase-discussed':'var(--teal)','officer-discussed':'var(--purple)','steward-update':'var(--amber)',
-  'ad-hoc-mgmt-mtg':'var(--teal)','unit-pre-grievance-mtg':'var(--teal)'
+  'ad-hoc-mgmt-mtg':'var(--teal)','unit-pre-grievance-mtg':'var(--teal)',
+  'wlr-initial-mtg':'#7c3aed','wlr-followup-mgmt':'#7c3aed','wlr-additional-mtg':'#7c3aed',
+  'wlr-solution-proposed':'#7c3aed','wlr-solution-accepted':'var(--teal)','wlr-solution-rejected':'var(--red)'
 };
 const EVT_AUTO_DEADLINES={
   'union-filed-step1':[{label:'Mgmt: oral reply due (Art. 16H)',days:7,owner:'mgmt',moType:'Step response due'}],
@@ -2655,6 +2682,8 @@ const EVT_AUTO_DEADLINES={
   'prearb-mtg-scheduled':[],'arb-hearing-scheduled':[],'prearb-meeting-held':[],'step3-filed':[],
   'member-followup':[],'member-meeting':[],'touchbase-discussed':[],'officer-discussed':[],'steward-update':[],
   'ad-hoc-mgmt-mtg':[],'unit-pre-grievance-mtg':[],
+  'wlr-initial-mtg':[],'wlr-followup-mgmt':[],'wlr-additional-mtg':[],
+  'wlr-solution-proposed':[],'wlr-solution-accepted':[],'wlr-solution-rejected':[],
   'mgmt-ack-receipt':[]
 };
 
@@ -2811,6 +2840,11 @@ function renderCFHealthBanner(){
       'mgmt-denied':'Consider next step: Step 2/3 appeal or arbitration.',
       'union-filed-arb':'Prepare for arbitration. Confirm hearing date and witnesses.',
       'arb-hearing-held':'Await arbitrator decision (typically 30d).',
+      'wlr-initial-mtg':'Schedule WLR follow-up — management should present their data/response.',
+      'wlr-followup-mgmt':'Evaluate management’s presentation. Schedule additional WLR meeting or propose solution.',
+      'wlr-additional-mtg':'Continue WLR process. Document all positions and proposed solutions.',
+      'wlr-solution-proposed':'Await management response to proposed solution.',
+      'wlr-solution-rejected':'File Step 3 grievance. Document all WLR meetings and proposals as supporting evidence.',
       'mgmt-response-overdue':'Follow up in writing. Consider logging formal overdue notice.',
       'step1-mtg-scheduled':'Prepare for Step 1 meeting. Review member statement and facts.',
       'step2-mtg-scheduled':'Prepare for Step 2 meeting. Gather all Step 1 materials and response.',
@@ -2847,9 +2881,10 @@ function renderCFHealthBanner(){
 }
 
 // ── TIMELINE VIEW STATE ───────────────────────────────────────────────
-let timelineView='art16'; // 'art16' | 'all' | 'comms'
+let timelineView='art16'; // 'art16' | 'all' | 'comms' | 'wlr'
 
 const COMMS_TYPES=['member-followup','member-meeting','touchbase-discussed','officer-discussed','steward-update','note','member','action','ad-hoc-mgmt-mtg','unit-pre-grievance-mtg','union-contact'];
+const WLR_TYPES=['wlr-initial-mtg','wlr-followup-mgmt','wlr-additional-mtg','wlr-solution-proposed','wlr-solution-accepted','wlr-solution-rejected'];
 const ART16_TYPES=['union-filed-step1','union-filed-step2','union-filed-step3','union-filed-arb','union-info-request','union-extension','union-withdrew',
   'step1-mtg-scheduled','step2-mtg-scheduled','step3-mtg-scheduled','prearb-mtg-scheduled','arb-hearing-scheduled',
   'step1-meeting-held','step2-meeting-held','step3-meeting-held','prearb-meeting-held','arb-hearing-held',
@@ -2860,16 +2895,16 @@ const ART16_TYPES=['union-filed-step1','union-filed-step2','union-filed-step3','
 function setTimelineView(view){
   timelineView=view;
   // Update button styles
-  ['art16','all','comms'].forEach(v=>{
+  ['art16','all','comms','wlr'].forEach(v=>{
     const btn=document.getElementById('tl-btn-'+v);
     if(btn){btn.style.background=v===view?'var(--navy)':'#fff';btn.style.color=v===view?'#fff':'var(--text3)';}
   });
   // Update label
   const label=document.getElementById('cf-timeline-label');
-  if(label){label.textContent=view==='art16'?'Article 16 timeline':view==='all'?'All events':'Communications / informal';}
+  if(label){label.textContent=view==='art16'?'Article 16 timeline':view==='all'?'All events':view==='wlr'?'Workload Review (WLR)':'Communications / informal';}
   // Update legend visibility
   const legend=document.getElementById('cf-timeline-legend');
-  if(legend)legend.style.display=view==='comms'?'none':'flex';
+  if(legend)legend.style.display=(view==='comms'||view==='wlr')?'none':'flex';
   renderCFTimeline();
 }
 
@@ -2886,6 +2921,8 @@ function renderCFTimeline(){
     filtered=filtered.filter(n=>ART16_TYPES.includes(n.type));
   } else if(timelineView==='comms'){
     filtered=filtered.filter(n=>COMMS_TYPES.includes(n.type));
+  } else if(timelineView==='wlr'){
+    filtered=filtered.filter(n=>WLR_TYPES.includes(n.type));
   }
   // Sort chronologically by event date, then by log timestamp
   filtered.sort((a,b)=>{
@@ -2931,7 +2968,7 @@ function renderCFTimeline(){
   }
 
   if(!items.length){
-    const msg=timelineView==='comms'?'No communications logged yet.':timelineView==='all'?'No events logged yet.':'No Article 16 events logged yet.';
+    const msg=timelineView==='comms'?'No communications logged yet.':timelineView==='all'?'No events logged yet.':timelineView==='wlr'?'No WLR events logged yet. Use the Workload Review optgroup in the event type dropdown.':'No Article 16 events logged yet.';
     el.innerHTML=`<div style="font-size:12px;color:var(--text3);padding:12px;text-align:center">${msg}<br>Use the form to log the first event.</div>`;
     return;
   }
@@ -3013,6 +3050,7 @@ function updateEventForm(){
     'mgmt-ack-receipt','mgmt-response-step1','mgmt-response-step2','mgmt-response-step3',
     'mgmt-response-partial','mgmt-response-overdue','mgmt-extension','mgmt-info-received','mgmt-denied',
     'step1-meeting-held','step2-meeting-held','step3-meeting-held','prearb-meeting-held','arb-hearing-held',
+    'wlr-initial-mtg','wlr-followup-mgmt','wlr-additional-mtg','wlr-solution-proposed','wlr-solution-accepted','wlr-solution-rejected',
     'resolved','on-hold'];
   const isComm=COMM_TYPES.includes(type)||FILING_TYPES.includes(type);
   const commRow=getU('cf-comm-row');
@@ -3021,7 +3059,10 @@ function updateEventForm(){
     // Update labels based on context
     const methodLbl=commRow.querySelector('label');
     const whoLbl=commRow.querySelectorAll('label')[1];
-    if(FILING_TYPES.includes(type)){
+    if(WLR_TYPES.includes(type)){
+      if(methodLbl)methodLbl.textContent='Meeting format';
+      if(whoLbl)whoLbl.textContent='Attendees / who present';
+    } else if(FILING_TYPES.includes(type)){
       if(methodLbl)methodLbl.textContent='How filed / submitted';
       if(whoLbl)whoLbl.textContent='Submitted to / received from';
     } else {
@@ -3888,6 +3929,7 @@ function openCaseFile(id){
               <button id="tl-btn-art16" onclick="setTimelineView(\'art16\')" style="padding:4px 9px;border:none;background:var(--navy);color:#fff;font-size:10px;font-family:\'Georgia\',serif;cursor:pointer">Art. 16</button>
               <button id="tl-btn-all" onclick="setTimelineView(\'all\')" style="padding:4px 9px;border:none;background:#fff;color:var(--text3);font-size:10px;font-family:\'Georgia\',serif;cursor:pointer">All</button>
               <button id="tl-btn-comms" onclick="setTimelineView(\'comms\')" style="padding:4px 9px;border:none;background:#fff;color:var(--text3);font-size:10px;font-family:\'Georgia\',serif;cursor:pointer">Comms</button>
+              <button id=\"tl-btn-wlr\" onclick=\"setTimelineView(\'wlr\')\" style=\"padding:4px 9px;border:none;background:#fff;color:var(--text3);font-size:10px;font-family:\'Georgia\',serif;cursor:pointer\">WLR</button>
             </div>
           </div>
           <div style="display:flex;gap:12px;margin-bottom:10px;flex-wrap:wrap" id="cf-timeline-legend">
@@ -3911,6 +3953,22 @@ function openCaseFile(id){
                     <option value="union-info-request">Information request filed (Art. 16 Sec. 3)</option>
                     <option value="union-extension">Extension agreed (we granted)</option>
                     <option value="union-withdrew">Grievance withdrawn</option>
+                  </optgroup>
+                  <optgroup label="Workload Review (WLR)">
+                    <option value="wlr-initial-mtg">WLR initial meeting (union presents)</option>
+                    <option value="wlr-followup-mgmt">WLR follow-up (management presents)</option>
+                    <option value="wlr-additional-mtg">WLR additional follow-up meeting</option>
+                    <option value="wlr-solution-proposed">WLR — solution proposed</option>
+                    <option value="wlr-solution-accepted">WLR — solution accepted / resolved</option>
+                    <option value="wlr-solution-rejected">WLR — solution rejected / escalating</option>
+                  </optgroup>
+                  <optgroup label="Workload Review (WLR)">
+                    <option value="wlr-initial-mtg">WLR initial meeting (union presents)</option>
+                    <option value="wlr-followup-mgmt">WLR follow-up (management presents)</option>
+                    <option value="wlr-additional-mtg">WLR additional follow-up meeting</option>
+                    <option value="wlr-solution-proposed">WLR — solution proposed</option>
+                    <option value="wlr-solution-accepted">WLR — solution accepted / resolved</option>
+                    <option value="wlr-solution-rejected">WLR — solution rejected / escalating</option>
                   </optgroup>
                   <optgroup label="Meetings — Scheduled">
                     <option value="step1-mtg-scheduled">Step 1 meeting scheduled</option>
