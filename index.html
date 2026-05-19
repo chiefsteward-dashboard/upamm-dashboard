@@ -208,7 +208,8 @@ tr:hover td{background:#faf9f7}
   </div>
   <nav class="nav">
     <div class="nav-group">View</div>
-    <div class="nav-item active" onclick="showPanel('calendar',this)"><span class="nav-icon">📅</span> Calendar</div>
+    <div class="nav-item active" onclick="showPanel('home',this)"><span class="nav-icon">🏠</span> Home</div>
+    <div class="nav-item" onclick="showPanel('calendar',this)"><span class="nav-icon">📅</span> Calendar</div>
     <div class="nav-item" onclick="showPanel('deadlines',this)"><span class="nav-icon">🚨</span> Deadlines</div>
     <div class="nav-item" onclick="showPanel('tasks',this)"><span class="nav-icon">✅</span> Tasks</div>
     <div class="nav-group">Organize</div>
@@ -236,6 +237,53 @@ tr:hover td{background:#faf9f7}
 <div class="main">
 
 <!-- CALENDAR -->
+<!-- HOME / OVERVIEW PANEL -->
+<div id="panel-home" class="panel">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:10px">
+    <div>
+      <h1 style="margin:0">Overview</h1>
+      <div id="home-greeting" style="font-size:13px;color:var(--text3);margin-top:4px"></div>
+    </div>
+    <button class="btn btn-sm" onclick="renderHome()" style="font-size:11px">↻ Refresh</button>
+  </div>
+
+  <!-- Metric cards row -->
+  <div id="home-metrics" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:20px"></div>
+
+  <!-- Two-column layout: alerts + deadlines | recent activity -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start">
+
+    <!-- Left column: 21-day alerts + upcoming deadlines -->
+    <div style="display:flex;flex-direction:column;gap:14px">
+      <div class="card" style="padding:14px">
+        <div class="card-title" style="margin-bottom:10px">⚠ Active Alerts</div>
+        <div id="home-alerts"></div>
+      </div>
+      <div class="card" style="padding:14px">
+        <div class="card-title" style="margin-bottom:10px">⏰ Upcoming Deadlines <span style="font-size:11px;color:var(--text3);font-weight:400">(next 14 days)</span></div>
+        <div id="home-deadlines"></div>
+      </div>
+      <div class="card" style="padding:14px">
+        <div class="card-title" style="margin-bottom:10px">✅ Open Tasks <span style="font-size:11px;color:var(--text3);font-weight:400">(high priority)</span></div>
+        <div id="home-tasks"></div>
+      </div>
+    </div>
+
+    <!-- Right column: case status breakdown + recent activity -->
+    <div style="display:flex;flex-direction:column;gap:14px">
+      <div class="card" style="padding:14px">
+        <div class="card-title" style="margin-bottom:10px">📊 Cases by Status</div>
+        <div id="home-by-status"></div>
+      </div>
+      <div class="card" style="padding:14px">
+        <div class="card-title" style="margin-bottom:10px">🕐 Recent Activity <span style="font-size:11px;color:var(--text3);font-weight:400">(last 7 events)</span></div>
+        <div id="home-activity"></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
 <div id="panel-calendar" class="panel active">
   <div class="cal-nav">
     <button class="btn btn-sm" onclick="calMove(-1)">&#8592;</button>
@@ -1521,7 +1569,7 @@ function showPanel(id,el){
   document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
   document.getElementById('panel-'+id).classList.add('active');
   el.classList.add('active');
-  const init={calendar:initCalendar,deadlines:()=>{renderDlMetrics();renderDeadlines();},tasks:()=>{renderTaskMetrics();renderTasks();},grievances:()=>{populateFilters();renderGrievances();renderGMetrics();render21DayBanner();},stewards:()=>{renderStewardMetrics();renderStewards();},'mgmt-owes':()=>{renderMgmtOwes();},'union-owes':()=>{renderUnionOwes();},reflib:()=>{renderRefLib();},time:()=>{updateTimeMetrics();renderTimeLog();},notes:()=>{document.getElementById('n-date').value=today();renderNotes();},meetings:()=>{document.getElementById('mt-date').value=today();renderMeetings();},schedule:()=>{renderRecurring();renderOneOffs();loadSchedBlocks();},update:()=>{renderStatsChart();},settings:()=>{renderKeyContacts();}};
+  const init={home:renderHome,calendar:initCalendar,deadlines:()=>{renderDlMetrics();renderDeadlines();},tasks:()=>{renderTaskMetrics();renderTasks();},grievances:()=>{populateFilters();renderGrievances();renderGMetrics();render21DayBanner();},stewards:()=>{renderStewardMetrics();renderStewards();},'mgmt-owes':()=>{renderMgmtOwes();},'union-owes':()=>{renderUnionOwes();},reflib:()=>{renderRefLib();},time:()=>{updateTimeMetrics();renderTimeLog();},notes:()=>{document.getElementById('n-date').value=today();renderNotes();},meetings:()=>{document.getElementById('mt-date').value=today();renderMeetings();},schedule:()=>{renderRecurring();renderOneOffs();loadSchedBlocks();},update:()=>{renderStatsChart();},settings:()=>{renderKeyContacts();}};
   if(init[id])init[id]();
 }
 
@@ -4871,6 +4919,160 @@ function deleteKeyContact(id){
   saveKeyContacts();renderKeyContacts();
 }
 
+// ── HOME / OVERVIEW PANEL ────────────────────────────────────────────
+function renderHome(){
+  const td=todayDate();
+  const open=grievances.filter(g=>g.closed==='No');
+  const closed=grievances.filter(g=>g.closed==='Yes');
+
+  // Greeting
+  const greetEl=document.getElementById('home-greeting');
+  const hr=new Date().getHours();
+
+  if(greetEl)greetEl.textContent=(hr<12?"Good morning":hr<17?"Good afternoon":"Good evening")+", "+currentUserName().split(" ")[0]+". Here’s your caseload snapshot.";
+
+  // ── Metric cards ──
+  const urgentDl=getAllDeadlines().filter(d=>{
+    if(d.done)return false;
+    const df=d.date?Math.round((parseDate(d.date)-td)/86400000):null;
+    return df!==null&&df<=7&&df>=0;
+  });
+  const openTasks=tasks.filter(t=>!t.done);
+  const highTasks=openTasks.filter(t=>t.pri==='high');
+  const ballUnion=open.filter(g=>{
+    const cd=getCaseData(g.id);
+    const notes=(cd.notes||[]).filter(n=>n.type&&n.type!=='auto'&&n.type!=='status');
+    if(!notes.length)return false;
+    const last=[...notes].sort((a,b)=>new Date(b.ts)-new Date(a.ts))[0];
+    const UNION_TYPES=['mgmt-response-step1','mgmt-response-step2','mgmt-response-step3','mgmt-response-partial','mgmt-info-received','mgmt-ack-receipt'];
+    return UNION_TYPES.includes(last?.type);
+  });
+
+  const metrics=[
+    {label:'Open Cases',value:open.length,color:'var(--navy)',panel:'grievances'},
+    {label:'Closed Cases',value:closed.length,color:'var(--text3)',panel:''},
+    {label:'Ball — Union',value:ballUnion.length,color:'#4285f4',panel:''},
+    {label:'Urgent Deadlines',value:urgentDl.length,color:urgentDl.length>0?'var(--red)':'var(--teal)',panel:'deadlines'},
+    {label:'Open Tasks',value:openTasks.length,color:'var(--amber)',panel:'tasks'},
+    {label:'High Priority',value:highTasks.length,color:highTasks.length>0?'var(--red)':'var(--teal)',panel:''},
+  ];
+  const metricsEl=document.getElementById('home-metrics');
+  if(metricsEl)metricsEl.innerHTML=metrics.map(m=>{
+    const clickAttr=m.panel?`onclick="showPanel('${m.panel}',document.querySelector('.nav-item[onclick*=\"${m.panel}\"]'))" style="cursor:pointer"`:'style="cursor:default"';
+    return`<div class="card" style="padding:14px 16px;border:1px solid var(--border)" ${clickAttr}>
+      <div style="font-size:28px;font-weight:800;color:${m.color};line-height:1">${m.value}</div>
+      <div style="font-size:11px;color:var(--text3);margin-top:4px;font-weight:600;text-transform:uppercase;letter-spacing:.05em">${m.label}</div>
+    </div>`;
+  }).join('');
+
+  // ── 21-day alerts ──
+  const EARLY=['Info Gathering','Problem Solving (pre-grievance)'];
+  const alerts=grievances.filter(g=>{
+    if(g.closed==='Yes'||!g.date||!EARLY.includes(g.status))return false;
+    const filed=parseDate(g.date);if(!filed)return false;
+    const dl=new Date(filed);dl.setDate(dl.getDate()+21);
+    const df=Math.round((dl-td)/86400000);
+    return df<=7&&df>=-14;
+  });
+  const alertsEl=document.getElementById('home-alerts');
+  if(alertsEl){
+    if(!alerts.length){alertsEl.innerHTML='<div style="font-size:13px;color:var(--teal)">✓ No active 21-day window alerts</div>';}
+    else{alertsEl.innerHTML=alerts.map(g=>{
+      const filed=parseDate(g.date);const dl=new Date(filed);dl.setDate(dl.getDate()+21);
+      const df=Math.round((dl-td)/86400000);
+      const msg=df<0?`${Math.abs(df)}d expired`:df===0?'TODAY':df+'d left';
+      const col=df<=0?'var(--red)':'var(--amber)';
+      return`<div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid #f5f5f5;cursor:pointer" onclick="openCaseFileFromBanner(${g.id})">
+        <span style="font-size:11px;font-weight:700;color:${col};min-width:60px">${msg}</span>
+        <span style="font-size:12px;font-weight:600;color:var(--navy)">#${escHtml(g.num)}</span>
+        <span style="font-size:12px;color:var(--text2);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(g.brief||g.type||'')}</span>
+      </div>`;
+    }).join('');}
+  }
+
+  // ── Upcoming deadlines (14 days) ──
+  const upcoming=getAllDeadlines().filter(d=>{
+    if(d.done)return false;
+    const df=d.date?Math.round((parseDate(d.date)-td)/86400000):null;
+    return df!==null&&df<=14&&df>=-1;
+  }).sort((a,b)=>a.date>b.date?1:a.date<b.date?-1:0);
+  const dlEl=document.getElementById('home-deadlines');
+  if(dlEl){
+    if(!upcoming.length){dlEl.innerHTML='<div style="font-size:13px;color:var(--teal)">✓ No deadlines in the next 14 days</div>';}
+    else{
+      const rows=upcoming.slice(0,8).map(d=>{
+        const df=d.date?Math.round((parseDate(d.date)-td)/86400000):null;
+        const col=df!==null&&df<=0?'var(--red)':df<=3?'var(--amber)':'var(--text2)';
+        const dayStr=df===0?'TODAY':df===-1?'YESTERDAY':df<0?Math.abs(df)+'d ago':df+'d';
+        const gnumHtml=d.gnum?'<span style="font-size:11px;color:var(--navy);font-weight:600;cursor:pointer" onclick="openGrievanceFromDeadline(\'' +escHtml(d.gnum)+ '\')">#'+escHtml(d.gnum)+'</span>':'';
+        return '<div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid #f5f5f5"><span style="font-size:11px;font-weight:700;color:'+col+';min-width:55px">'+dayStr+'</span>'+gnumHtml+'<span style="font-size:12px;color:var(--text2);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+escHtml(d.name||d.label||'')+'</span></div>';
+      });
+      if(upcoming.length>8)rows.push('<div style="font-size:11px;color:var(--text3);padding-top:6px">+'+(upcoming.length-8)+' more</div>');
+      dlEl.innerHTML=rows.join('');
+    }
+  }
+
+  // ── High priority open tasks ──
+  const tasksEl=document.getElementById('home-tasks');
+  if(tasksEl){
+    const hp=tasks.filter(t=>!t.done&&t.pri==='high').slice(0,5);
+    if(!hp.length){tasksEl.innerHTML='<div style="font-size:13px;color:var(--teal)">✓ No high-priority open tasks</div>';}
+    else{tasksEl.innerHTML=hp.map(t=>`
+      <div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid #f5f5f5">
+        <input type="checkbox" onchange="toggleTask(${t.id},this.checked)" style="flex-shrink:0">
+        <span style="font-size:12px;color:var(--text2);flex:1">${escHtml(t.text||'')}</span>
+        ${t.gnum?`<span style="font-size:11px;color:var(--navy);font-weight:600">#${escHtml(t.gnum)}</span>`:''}
+      </div>`).join('');}
+  }
+
+  // ── Cases by status ──
+  const statusMap={};
+  open.forEach(g=>{const s=g.status||'Unknown';statusMap[s]=(statusMap[s]||0)+1;});
+  const statusEl=document.getElementById('home-by-status');
+  if(statusEl){
+    const entries=Object.entries(statusMap).sort((a,b)=>b[1]-a[1]);
+    const STATUS_COLORS={'Step 1-Filed':'#534ab7','Step 2-Filed':'#534ab7','Step 3-Filed':'#534ab7',
+      'Arbitration':'var(--red)','Info Gathering':'var(--amber)','Problem Solving (pre-grievance)':'var(--amber)',
+      'Workload Info gathering':'#4285f4','On - Hold':'#888'};
+    statusEl.innerHTML=entries.map(([s,n])=>{
+      const pct=Math.round(n/open.length*100);
+      const col=STATUS_COLORS[s]||'var(--navy)';
+      return`<div style="margin-bottom:10px">
+        <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px">
+          <span style="color:var(--text2)">${escHtml(s)}</span>
+          <span style="font-weight:700;color:${col}">${n}</span>
+        </div>
+        <div style="background:#f0ede8;border-radius:99px;height:6px">
+          <div style="background:${col};width:${pct}%;height:6px;border-radius:99px;min-width:4px"></div>
+        </div>
+      </div>`;
+    }).join('')||'<div style="font-size:13px;color:#aaa">No open cases</div>';
+  }
+
+  // ── Recent activity (last 7 events across all cases) ──
+  const allEvents=[];
+  grievances.forEach(g=>{
+    const cd=getCaseData(g.id);
+    const notes=(cd.notes||[]).filter(n=>n.type&&n.type!=='auto'&&n.type!=='status');
+    notes.forEach(n=>allEvents.push({...n,gnum:g.num,gid:g.id,brief:g.brief}));
+  });
+  allEvents.sort((a,b)=>new Date(b.ts)-new Date(a.ts));
+  const actEl=document.getElementById('home-activity');
+  if(actEl){
+    const recent=allEvents.slice(0,7);
+    if(!recent.length){actEl.innerHTML='<div style="font-size:13px;color:#aaa">No events logged yet.</div>';}
+    else{actEl.innerHTML=recent.map(e=>{
+      const dayStr=diffDays(e.date||e.ts?.split('T')[0])===0?'Today':fmtDisplay(e.date||e.ts?.split('T')[0]);
+      return`<div style="display:flex;align-items:flex-start;gap:10px;padding:7px 0;border-bottom:1px solid #f5f5f5;cursor:pointer" onclick="openCaseFile(${e.gid})">
+        <span style="font-size:11px;color:var(--text3);min-width:68px;padding-top:1px">${dayStr}</span>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:12px;font-weight:600;color:var(--navy)">#${escHtml(e.gnum)} <span style="font-weight:400;color:var(--text3)">${escHtml(e.brief||'')}</span></div>
+          <div style="font-size:11px;color:var(--text2);margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(e.text||'')}</div>
+        </div>
+      </div>`;
+    }).join('');}
+  }
+}
 // ── OFFICER UPDATE ────────────────────────────────────────────────────
 function generateUpdate(){const ds=new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'});document.getElementById('update-date').textContent=ds;const open=grievances.filter(g=>g.closed==='No');const step3=open.filter(g=>g.status&&g.status.includes('Step 3'));const arb=open.filter(g=>g.status==='Arbitration');const hold=open.filter(g=>g.status&&g.status.includes('Hold'));const wlr=open.filter(g=>g.status&&(g.status.includes('Workload')||g.status.includes('WLR')));const ws=new Date();ws.setDate(ws.getDate()-ws.getDay());const wm=timeLog.filter(e=>new Date(e.date)>=ws).reduce((a,e)=>a+e.mins,0);const td=new Date();td.setHours(0,0,0,0);const urgent=open.filter(g=>g.deadline&&(diffDays(g.deadline)||0)<=7&&(diffDays(g.deadline)||0)>=0);const extra=document.getElementById('u-extra').value.trim();let t=`UPAMM — AFT Local 5297\nOFFICER MEETING UPDATE\n${ds}\nPresented by: Alexandra Tiefel, PA-C | Chief Steward\n`;t+=`\n══════════════════════\nGRIEVANCE SUMMARY\n══════════════════════\n`;t+=`Total: ${grievances.length}  Open: ${open.length}  Step 3: ${step3.length}  Arbitration: ${arb.length}  On Hold: ${hold.length}  WLR: ${wlr.length}\n`;if(step3.length){t+=`\nStep 3:\n`;step3.forEach(g=>{t+=`  • ${g.num} — ${g.brief||g.type} [${g.steward||'unassigned'}]\n`;});}if(arb.length){t+=`\nArbitration:\n`;arb.forEach(g=>{t+=`  • ${g.num} — ${g.brief||g.type}\n`;});}if(hold.length){t+=`\nOn Hold:\n`;hold.forEach(g=>{t+=`  • ${g.num} — ${g.brief||g.type}\n`;});}if(wlr.length){t+=`\nActive WLR:\n`;wlr.forEach(g=>{t+=`  • ${g.num} — ${g.brief||g.type} [${g.steward||'unassigned'}]\n`;});}if(urgent.length){t+=`\n⚠ Deadlines within 7 days:\n`;urgent.forEach(g=>{t+=`  • ${g.num} — due ${g.deadline}\n`;});}t+=`\n══════════════════════\nOPEN TASKS\n══════════════════════\n`;const openTasks=tasks.filter(t2=>!t2.done&&t2.pri==='high');if(openTasks.length){openTasks.forEach(tk=>{t+=`  • [${tk.pri.toUpperCase()}] ${tk.title}${tk.due?' (due '+fmtDisplay(tk.due)+')':''}\n`;})}else t+=`No high-priority tasks open.\n`;t+=`\n══════════════════════\nUPCOMING DEADLINES\n══════════════════════\n`;const allDl=getAllDeadlines().filter(d=>!d.done).sort((a,b)=>(diffDays(a.date)||999)-(diffDays(b.date)||999)).slice(0,5);allDl.forEach(d=>{const df=diffDays(d.date);t+='  • '+d.name+(df!==null?' ('+(df<0?Math.abs(df)+'d overdue':df===0?'today':'in '+df+'d')+')':'')+('\n');});t+=`\n══════════════════════\nSTEWARD ROSTER\n══════════════════════\n`;if(stewards.length){const act=stewards.filter(s=>s.status==='Active').length,vac=stewards.filter(s=>s.status==='Vacancy').length;t+=`Active: ${act}  Vacancies: ${vac}\n`;}else t+=`[Add stewards to roster]\n`;t+=`\n══════════════════════\nTIME THIS WEEK\n══════════════════════\n${Math.floor(wm/60)}h ${wm%60}m logged\n`;const weekMtgs=meetings.filter(m=>{try{return new Date(m.date)>=ws;}catch(e){return false;}});if(weekMtgs.length){t+=`Meetings: ${weekMtgs.length}\n`;weekMtgs.forEach(m=>{t+=`  • ${TYPE_LABELS[m.type]||m.type}${m.gnum?' (#'+m.gnum+')':''}\n`;});}if(extra)t+=`\n══════════════════════\nADDITIONAL ITEMS\n══════════════════════\n${extra}\n`;t+=`\n══════════════════════\nNEXT STEPS\n══════════════════════\n• Monitor open grievance deadlines\n• [Add specific action items]\n`;document.getElementById('update-content').textContent=t;document.getElementById('update-card').style.display='block';}
 function copyUpdate(){navigator.clipboard.writeText(document.getElementById('update-content').textContent).then(()=>alert('Copied!'));}
@@ -5998,6 +6200,9 @@ function initAppUI(){
   const td=document.getElementById('tk-due');if(td)td.value=today();
   populateFilters();renderGrievances();renderGMetrics();render21DayBanner();
   initCalendar();updateBackupStatus();buildContactDatalist('contacts-datalist');
+  // Show Home as the landing panel
+  const homeNav=document.querySelector('.nav-item[onclick*="home"]');
+  if(homeNav)showPanel('home',homeNav);
 }
 
 // ── GOOGLE TOKEN HELPER ───────────────────────────────────────────────
