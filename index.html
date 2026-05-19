@@ -1564,6 +1564,13 @@ function fmtDisplay(s){if(!s)return'—';const d=parseDate(s);if(!d)return s;ret
 function escHtml(s){return(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 function diffDays(isoStr){if(!isoStr)return null;const d=parseDate(isoStr);if(!d)return null;return Math.round((d-todayDate())/86400000);}
 
+function navToPanel(id){
+  // Find nav item by iterating — avoids nested quote issues with querySelector attribute selectors
+  const items=document.querySelectorAll('.nav-item');
+  let nav=null;
+  items.forEach(el=>{const oc=el.getAttribute('onclick')||'';if(oc.includes("'"+id+"'"))nav=el;});
+  if(nav)showPanel(id,nav);
+}
 function showPanel(id,el){
   document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
@@ -4958,7 +4965,7 @@ function renderHome(){
   ];
   const metricsEl=document.getElementById('home-metrics');
   if(metricsEl)metricsEl.innerHTML=metrics.map(m=>{
-    const clickAttr=m.panel?`onclick="showPanel('${m.panel}',document.querySelector('.nav-item[onclick*=\"${m.panel}\"]'))" style="cursor:pointer"`:'style="cursor:default"';
+    const clickAttr=m.panel?`onclick="navToPanel('${m.panel}')" style="cursor:pointer"`:'style="cursor:default"';
     return`<div class="card" style="padding:14px 16px;border:1px solid var(--border)" ${clickAttr}>
       <div style="font-size:28px;font-weight:800;color:${m.color};line-height:1">${m.value}</div>
       <div style="font-size:11px;color:var(--text3);margin-top:4px;font-weight:600;text-transform:uppercase;letter-spacing:.05em">${m.label}</div>
