@@ -930,9 +930,16 @@ tr:hover td{background:#faf9f7}
             </div>
             <div id="cf-obligations-list"></div>
           </div>
+          <div style="margin-bottom:16px;padding:12px;background:#f9f8f6;border:1px solid var(--border);border-radius:var(--radius)">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+              <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em">📌 Case Notes (scratch pad)</div>
+              <button class="btn btn-sm" style="font-size:10px;padding:2px 8px" onclick="saveCaseScratchPad()">Save</button>
+            </div>
+            <textarea id="cf-scratchpad" rows="3" placeholder="Running notes, context, things to remember..." style="width:100%;font-size:12px;padding:6px 8px;border:1px solid var(--border);border-radius:var(--radius);resize:vertical;font-family:inherit;color:var(--text2)"></textarea>
+          </div>
           <div style="display:flex;align-items:center;gap:8px;margin:14px 0 8px">
             <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;flex:1">Event history &amp; case notes</div>
-            <span style="font-size:10px;color:var(--text3);background:#f0ede8;padding:2px 7px;border-radius:99px">All logged events appear here</span>
+            <input type="text" id="cf-evt-search" placeholder="Search events..." oninput="renderCFActivity()" style="font-size:11px;padding:3px 8px;border:1px solid var(--border);border-radius:99px;width:140px">
           </div>
           <div id="cf-activity-list"></div>
         </div>
@@ -1103,6 +1110,7 @@ tr:hover td{background:#faf9f7}
       <select id="uo-show" onchange="renderUnionOwes()" style="font-size:12px;padding:5px 8px;width:auto">
         <option value="open">Outstanding only</option><option value="done">Completed</option><option value="">All</option>
       </select>
+      <input type="text" id="uo-filter-gnum" placeholder="Grievance #..." oninput="renderUnionOwes()" style="font-size:12px;padding:5px 8px;width:110px;border:1px solid var(--border);border-radius:var(--radius)">
     </div>
     <div id="union-owes-list"></div>
   </div>
@@ -1403,9 +1411,8 @@ async function sbSaveGrievance(g){await sbUpsert('grievances',grievanceToDb(g),'
 async function sbDeleteGrievance(id){grievances=grievances.filter(g=>g.id!=id);await sbDelete('grievances',id,'Grievance deleted');await sb.from('case_data').delete().eq('grievance_id',id);}
 async function sbSaveCaseData(gId){
   const cd=getCaseData(gId);
-  // Show saving indicator
   updateCaseSaveStatus('saving');
-  const {error}=await sb.from('case_data').upsert({grievance_id:gId,notes:cd.notes||[],docs:cd.docs||[],info_requests:cd.infoRequests||[],last_edited_by:currentUserName(),last_edited_at:new Date().toISOString()},{onConflict:'grievance_id'});
+  const {error}=await sb.from('case_data').upsert({grievance_id:gId,notes:cd.notes||[],docs:cd.docs||[],info_requests:cd.infoRequests||[],scratchpad:cd.scratchpad||'',last_edited_by:currentUserName(),last_edited_at:new Date().toISOString()},{onConflict:'grievance_id'});
   if(error){console.error('case_data save error',error);updateCaseSaveStatus('error');}
   else{updateCaseSaveStatus('saved');}
 }
@@ -1436,6 +1443,28 @@ function deleteCaseStep2(){
   toast.style.cssText='position:fixed;bottom:24px;right:24px;background:#a32d2d;color:#fff;padding:10px 18px;border-radius:var(--radius);font-size:13px;z-index:9999';
   toast.textContent='Case #'+(g.num||'?')+' deleted';
   document.body.appendChild(toast);setTimeout(()=>toast.remove(),3000);
+}
+
+function saveCaseScratchPad(){
+  if(!activeCaseId)return;
+  const _m=document.getElementById('cf-modal-overlay');const _mOpen=_m&&_m.style.display!=='none';
+  const el=(_mOpen&&_m.querySelector('#cf-scratchpad'))||document.getElementById('cf-scratchpad');
+  if(!el)return;
+  const cd=getCaseData(activeCaseId);
+  cd.scratchpad=el.value;
+  sbSaveCaseData(activeCaseId);
+  updateCaseSaveStatus('saved');
+}
+
+function loadCaseScratchPad(){
+  if(!activeCaseId)return;
+  const _m=document.getElementById('cf-modal-overlay');const _mOpen=_m&&_m.style.display!=='none';
+  const el=(_mOpen&&_m.querySelector('#cf-scratchpad'))||document.getElementById('cf-scratchpad');
+  if(!el)return;
+  const cd=getCaseData(activeCaseId);
+  el.value=cd.scratchpad||'';
+  // Auto-save on blur
+  el.onblur=saveCaseScratchPad;
 }
 
 function updateCaseSaveStatus(state){
@@ -1545,7 +1574,7 @@ async function loadAllData(){
     caseData[row.grievance_id]={
       notes:row.notes||[],
       docs:row.docs||DEFAULT_DOCS.map(d=>({text:d,done:false,custom:false})),
-      infoRequests:row.info_requests||[]
+      infoRequests:row.info_requests||[],scratchpad:row.scratchpad||''
     };
   });
 }
@@ -2720,7 +2749,14 @@ const EVT_AUTO_DEADLINES={
 // ── BALL IN COURT CALCULATOR ──────────────────────────────────────────
 function calcBallInCourt(notes){
   if(!notes||!notes.length)return{owner:'—',label:'Not started',color:'#888'};
-  const sorted=[...notes].sort((a,b)=>new Date(b.ts)-new Date(a.ts));
+  // Exclude auto/status events — only real logged events affect ball-in-court
+  const real=notes.filter(n=>n.type&&n.type!=='auto'&&n.type!=='status');
+  if(!real.length)return{owner:'—',label:'Monitoring',color:'#888'};
+  const sorted=[...real].sort((a,b)=>{
+    const da=a.date?new Date(a.date+'T00:00:00'):new Date(a.ts);
+    const db=b.date?new Date(b.date+'T00:00:00'):new Date(b.ts);
+    return db-da;
+  });
   const last=sorted[0];
   const o=EVT_OWNER[last.type]||'';
   if(o==='union')return{owner:'Union',label:'Union must act',color:'#534ab7'};
@@ -2745,7 +2781,10 @@ function calcAllOutstandingDeadlines(gId){
   const g=grievances.find(x=>x.id==gId);
   if(!cd.notes||!cd.notes.length)return[];
   const addD=(d,n)=>{const r=new Date(d);r.setDate(r.getDate()+n);return r;};
-  const realNotes=cd.notes.filter(n=>n.type!=='auto'&&n.type!=='status');
+  const _mSrch=document.getElementById('cf-modal-overlay');const _mSrchOpen=_mSrch&&_mSrch.style.display!=='none';
+  const srchEl=(_mSrchOpen&&_mSrch.querySelector('#cf-evt-search'))||document.getElementById('cf-evt-search');
+  const srchQ=(srchEl?.value||'').toLowerCase().trim();
+  const realNotes=cd.notes.filter(n=>n.type!=='auto'&&n.type!=='status'&&(!srchQ||(n.text||'').toLowerCase().includes(srchQ)||(n.type||'').toLowerCase().includes(srchQ)));
   const result=[];
   const seen=new Set();// avoid duplicate deadlines from same event type
 
@@ -3512,7 +3551,13 @@ function addUnionOwes(){
 
 function renderUnionOwes(){
   const fs=document.getElementById('uo-show')?.value||'open';
-  let list=unionOwes.filter(x=>fs==='open'?!x.done:fs==='done'?x.done:true);
+  const fg=(document.getElementById('uo-filter-gnum')?.value||'').trim().toLowerCase();
+  let list=unionOwes.filter(x=>{
+    if(fs==='open'&&x.done)return false;
+    if(fs==='done'&&!x.done)return false;
+    if(fg&&!(x.gnum||'').toLowerCase().includes(fg)&&!(x.what||'').toLowerCase().includes(fg))return false;
+    return true;
+  });
   list.sort((a,b)=>{if(a.done!==b.done)return a.done?1:-1;const da=a.due||'9999',db=b.due||'9999';return da>db?1:da<db?-1:0;});
   // Metrics
   const open=unionOwes.filter(x=>!x.done).length;
@@ -4127,7 +4172,14 @@ function openCaseFile(id){
             </div>
             <div id="cf-obligations-list"></div>
           </div>
-          <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin:0 0 8px">Event history</div>
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;flex:1">Event history &amp; case notes</div><input type="text" id="cf-evt-search" placeholder="Search events..." oninput="renderCFActivity()" style="font-size:11px;padding:3px 8px;border:1px solid var(--border);border-radius:99px;width:140px"></div>
+          <div style="margin-bottom:14px;padding:10px;background:#f9f8f6;border:1px solid var(--border);border-radius:var(--radius)">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+              <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em">📌 Case Notes (scratch pad)</div>
+              <button class="btn btn-sm" style="font-size:10px;padding:2px 8px" onclick="saveCaseScratchPad()">Save</button>
+            </div>
+            <textarea id="cf-scratchpad" rows="3" placeholder="Running notes, context, things to remember..." style="width:100%;font-size:12px;padding:6px 8px;border:1px solid var(--border);border-radius:var(--radius);resize:vertical;font-family:inherit;color:var(--text2)"></textarea>
+          </div>
           <div id="cf-activity-list"></div>
         </div>
       </div>`,
@@ -4409,7 +4461,7 @@ function saveCFEdit(){
   // Also update off-screen static header refs if present
   const cfTitle=document.getElementById('cf-title');if(cfTitle)cfTitle.textContent='Grievance '+g.num+' — '+(g.brief||g.type||'');
   const cfBadge=document.getElementById('cf-status-badge');if(cfBadge)cfBadge.innerHTML=statusBadge(g.status);
-  renderCFDetails();renderCFActivity();
+  renderCFDetails();renderCFActivity();loadCaseScratchPad();
   // Reset event form to default state on open
   setTimeout(()=>{
     const _mR=document.getElementById('cf-modal-overlay');
@@ -4731,16 +4783,32 @@ function openFloatingNotes(g){
   panel.style.cssText='position:fixed;bottom:24px;right:24px;width:420px;max-height:80vh;overflow-y:auto;background:#fff;border:1px solid var(--border);border-radius:var(--radius-lg);box-shadow:0 8px 40px rgba(0,0,0,0.18);z-index:600;padding:20px';
   panel.innerHTML=`
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px">
-      <div style="font-size:15px;font-weight:700;color:var(--navy);flex:1">📝 Quick Meeting Note</div>
+      <div style="font-size:15px;font-weight:700;color:var(--navy);flex:1">📝 Quick Note / Meeting Note</div>
       <button class="btn btn-sm" onclick="document.getElementById('floating-notes-panel').remove()">✕</button>
     </div>
     <div class="form-row">
-      <div class="form-field"><label>Template</label>
+      <div class="form-field"><label>Type / Template</label>
         <select id="fn-type">
-          <option value="step1">Step 1</option><option value="step2">Step 2</option><option value="step3">Step 3</option>
-          <option value="intake">Member Intake</option><option value="mgmt-touchbase">Mgmt Touchbase</option>
-          <option value="lm-meeting">L-M Meeting</option><option value="wlr-intake">WLR Intake</option>
-          <option value="wlr-present">WLR Union Presents</option><option value="officer">Officer Meeting</option>
+          <optgroup label="Grievance Meetings">
+            <option value="step1">Step 1</option><option value="step2">Step 2</option><option value="step3">Step 3</option>
+            <option value="prearb">Pre-arb (Step 3.5)</option><option value="arb">Arbitration Hearing</option>
+          </optgroup>
+          <optgroup label="Workload Review">
+            <option value="wlr-intake">WLR Intake</option><option value="wlr-present">WLR Union Presents</option>
+            <option value="wlr-mgmt">WLR Mgmt Presents</option><option value="wlr-followup">WLR Follow-Up</option>
+            <option value="wlr-resolution">WLR Resolution</option>
+          </optgroup>
+          <optgroup label="Other Meetings">
+            <option value="intake">Member Intake</option><option value="mgmt-touchbase">Mgmt Touchbase</option>
+            <option value="adhoc-mgmt">Ad Hoc Meeting w/ Management</option>
+            <option value="unit-pre-grievance">Unit / Pre-Grievance Meeting</option>
+            <option value="lm-meeting">L-M Meeting</option><option value="officer">Officer Meeting</option>
+            <option value="steward-checkin">Steward Check-In</option>
+          </optgroup>
+          <optgroup label="Notes (not a meeting)">
+            <option value="case-note">Case Note</option>
+            <option value="general-note">General Note</option>
+          </optgroup>
         </select>
       </div>
       <div class="form-field" style="max-width:140px"><label>Date</label><input type="date" id="fn-date" value="${today()}"></div>
@@ -4755,7 +4823,7 @@ function openFloatingNotes(g){
       <div class="form-field"><label>Notes</label><textarea id="fn-body" rows="8" placeholder="Meeting notes..."></textarea></div>
     </div>
     <div style="display:flex;gap:8px">
-      <button class="btn btn-primary btn-sm" onclick="saveFloatingNote()">Save Meeting Note</button>
+      <button class="btn btn-primary btn-sm" onclick="saveFloatingNote()" id="fn-save-btn">Save Note</button>
       <button class="btn btn-sm" onclick="document.getElementById('floating-notes-panel').remove()">Cancel</button>
     </div>`;
   document.body.appendChild(panel);
