@@ -3179,7 +3179,7 @@ function updateEventForm(){
   const type=typeEl.value||'';
   const extRow=getU('cf-ext-row');
   const mtgSchedRow=getU('cf-mtg-sched-row');
-  const isMtgSched=['step1-mtg-scheduled','step2-mtg-scheduled','step3-mtg-scheduled','prearb-mtg-scheduled','arb-hearing-scheduled','wlr-initial-mtg-scheduled','wlr-followup-mgmt-scheduled','wlr-additional-mtg-scheduled'].includes(type);
+  const isMtgSched=['step1-mtg-scheduled','step2-mtg-scheduled','step3-mtg-scheduled','prearb-mtg-scheduled','arb-hearing-scheduled','wlr-initial-mtg-scheduled','wlr-followup-mgmt-scheduled','wlr-additional-mtg-scheduled','ad-hoc-mgmt-mtg','unit-pre-grievance-mtg'].includes(type);
   const isExt=type==='union-extension'||type==='mgmt-extension';
   if(extRow){
     extRow.style.display=isExt?'block':'none';
@@ -3201,6 +3201,8 @@ function updateEventForm(){
     if(lbl){
       if(type==='arb-hearing-scheduled')lbl.textContent='Hearing date (actual meeting date)';
       else if(type==='prearb-mtg-scheduled')lbl.textContent='Pre-arb meeting date (actual meeting date)';
+      else if(type==='ad-hoc-mgmt-mtg')lbl.textContent='Meeting date';
+      else if(type==='unit-pre-grievance-mtg')lbl.textContent='Meeting date';
       else lbl.textContent='Meeting date (actual meeting date)';
     }
   }
@@ -3211,7 +3213,8 @@ function updateEventForm(){
     if(fieldRow){
       const lbl=fieldRow.querySelector('label');
       if(lbl){
-        if(isMtgSched)lbl.textContent='Date agreed / scheduled';
+        if(isMtgSched&&!['ad-hoc-mgmt-mtg','unit-pre-grievance-mtg'].includes(type))lbl.textContent='Date agreed / scheduled';
+        else if(['ad-hoc-mgmt-mtg','unit-pre-grievance-mtg'].includes(type))lbl.textContent='Date held';
         else if(isExt)lbl.textContent='Date of agreement';
         else lbl.textContent='Event date';
       }
