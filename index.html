@@ -702,6 +702,7 @@ tr:hover td{background:#faf9f7}
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap">
         <div class="card-title" style="margin:0;flex:1">All Grievances</div>
         <button class="btn btn-sm" onclick="showColSettings()" title="Show/hide and reorder columns">⚙ Columns</button>
+        <button class="btn btn-sm" onclick="openBatchEventModal()" style="color:var(--purple);border-color:var(--purple)">⚡ Batch log event</button>
         <button class="btn btn-sm" onclick="printGrievanceLog()">🖨 Print log</button>
         <button class="btn btn-sm btn-green" onclick="exportCSV('grievances')">⬇ Export CSV</button>
         <button class="btn btn-sm btn-green" onclick="exportCSV('case-notes')" style="background:var(--purple);border-color:var(--purple)">⬇ All case notes</button>
@@ -896,7 +897,8 @@ tr:hover td{background:#faf9f7}
             </div>
             <div id="cf-ext-row" style="display:none" class="form-row">
               <div class="form-field" style="flex:2"><label>Extension reason</label><input type="text" id="cf-ext-reason" placeholder="Mutual written agreement — reason..."></div>
-              <div class="form-field" style="max-width:150px"><label>New deadline</label><input type="date" id="cf-ext-newdate"></div>
+              <div class="form-field" style="max-width:150px"><label>New deadline date</label><input type="date" id="cf-ext-newdate"></div>
+              <div class="form-field" style="flex:2"><label>Which deadline <span style="font-weight:400;color:var(--text3)">(optional)</span></label><input type="text" id="cf-ext-which" placeholder="e.g. Step 1 response..." list="ext-deadline-list"><datalist id="ext-deadline-list"></datalist></div>
             </div>
             <div id="cf-evt-preview" style="display:none;background:#e1f5ee;border:1px solid #0f6e56;border-radius:var(--radius);padding:10px 12px;font-size:12px;color:#085041;margin-bottom:10px"></div>
             <button class="btn btn-primary btn-sm" onclick="addCaseEvent()">Log Event</button>
@@ -1257,6 +1259,95 @@ tr:hover td{background:#faf9f7}
       <button class="btn btn-sm btn-green" onclick="driveSaveOfficerUpdate(document.getElementById('update-content').textContent).then(()=>alert('Saved to Drive!'))">💾 Save to Drive</button>
     </div>
     <div class="update-out" id="update-content"></div>
+  </div>
+</div>
+
+<!-- BATCH EVENT MODAL -->
+<div id="batch-event-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:8000;overflow-y:auto">
+  <div style="background:#fff;border-radius:var(--radius);max-width:680px;margin:40px auto;padding:0;box-shadow:0 8px 40px rgba(0,0,0,0.2)">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--border)">
+      <div style="font-size:16px;font-weight:700;color:var(--navy)">⚡ Batch Log Event</div>
+      <button onclick="closeBatchEventModal()" style="background:none;border:none;font-size:18px;cursor:pointer;color:var(--text3)">✕</button>
+    </div>
+    <div style="padding:20px;display:grid;grid-template-columns:1fr 1fr;gap:20px">
+      <!-- Left: case selection -->
+      <div>
+        <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">Select Cases</div>
+        <div style="margin-bottom:8px;display:flex;gap:8px">
+          <button class="btn btn-sm" onclick="batchSelectAll()" style="font-size:11px">All open</button>
+          <button class="btn btn-sm" onclick="batchSelectNone()" style="font-size:11px">None</button>
+        </div>
+        <div id="batch-case-list" style="max-height:340px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--radius);padding:8px"></div>
+      </div>
+      <!-- Right: event form -->
+      <div>
+        <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">Event Details</div>
+        <div class="form-field" style="margin-bottom:10px"><label>Event type</label>
+          <select id="batch-evt-type" onchange="updateBatchEventForm()" style="width:100%">
+            <optgroup label="Union — Filings">
+              <option value="union-filed-step1">Step 1 filed</option>
+              <option value="union-filed-step2">Step 2 filed</option>
+              <option value="union-filed-step3">Step 3 filed</option>
+              <option value="union-filed-arb">Arbitration notice filed</option>
+              <option value="union-info-request">Information request filed</option>
+              <option value="union-extension">Extension agreed (we granted)</option>
+              <option value="union-withdrew">Grievance withdrawn</option>
+            </optgroup>
+            <optgroup label="Management — Responses">
+              <option value="mgmt-response-step1">Mgmt Step 1 response received</option>
+              <option value="mgmt-response-step2">Mgmt Step 2 response received</option>
+              <option value="mgmt-response-step3">Mgmt Step 3 response received</option>
+              <option value="mgmt-ack-receipt">Mgmt acknowledged receipt</option>
+              <option value="mgmt-extension">Extension agreed (mgmt requested)</option>
+              <option value="mgmt-denied">Mgmt denied grievance</option>
+            </optgroup>
+            <optgroup label="Meetings — Scheduled">
+              <option value="step1-mtg-scheduled">Step 1 meeting scheduled</option>
+              <option value="step2-mtg-scheduled">Step 2 meeting scheduled</option>
+              <option value="step3-mtg-scheduled">Step 3 meeting scheduled</option>
+            </optgroup>
+            <optgroup label="Meetings — Held">
+              <option value="step1-meeting-held">Step 1 meeting held</option>
+              <option value="step2-meeting-held">Step 2 meeting held</option>
+              <option value="step3-meeting-held">Step 3 meeting held</option>
+            </optgroup>
+            <optgroup label="Communications">
+              <option value="touchbase-discussed">Discussed at mgmt touchbase</option>
+              <option value="ad-hoc-mgmt-mtg">Ad hoc meeting with management</option>
+              <option value="union-contact">Union contacted management</option>
+              <option value="officer-discussed">Discussed at officer meeting</option>
+            </optgroup>
+            <optgroup label="Status">
+              <option value="on-hold">Placed on hold</option>
+              <option value="resolved">Resolved / settled</option>
+              <option value="note">General note</option>
+            </optgroup>
+          </select>
+        </div>
+        <div class="form-field" style="margin-bottom:10px"><label>Event date</label><input type="date" id="batch-evt-date" style="width:100%"></div>
+        <div id="batch-mtg-row" style="display:none" class="form-field" style="margin-bottom:10px"><label>Meeting date (actual)</label><input type="date" id="batch-mtg-date" style="width:100%"></div>
+        <div class="form-field" style="margin-bottom:10px"><label>Method</label>
+          <select id="batch-method" style="width:100%">
+            <option value="">— Select —</option>
+            <option>In-person</option><option>Phone</option><option>Zoom / video</option>
+            <option>Email</option><option>Written letter</option><option>Other (see notes)</option>
+          </select>
+        </div>
+        <div class="form-field" style="margin-bottom:10px"><label>Who</label>
+          <input type="text" id="batch-who" list="contacts-datalist" placeholder="Name / role..." style="width:100%">
+        </div>
+        <div class="form-field" style="margin-bottom:14px"><label>Notes</label>
+          <textarea id="batch-notes" rows="3" placeholder="Details applicable to all selected cases..." style="width:100%;font-size:13px;padding:6px 8px;border:1px solid var(--border);border-radius:var(--radius);font-family:inherit;resize:vertical"></textarea>
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between">
+          <span id="batch-selected-count" style="font-size:12px;color:var(--text3)">0 cases selected</span>
+          <div style="display:flex;gap:8px">
+            <button class="btn btn-sm" onclick="closeBatchEventModal()">Cancel</button>
+            <button class="btn btn-primary" onclick="submitBatchEvent()">⚡ Log to all selected</button>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -3090,7 +3181,20 @@ function updateEventForm(){
   const mtgSchedRow=getU('cf-mtg-sched-row');
   const isMtgSched=['step1-mtg-scheduled','step2-mtg-scheduled','step3-mtg-scheduled','prearb-mtg-scheduled','arb-hearing-scheduled','wlr-initial-mtg-scheduled','wlr-followup-mgmt-scheduled','wlr-additional-mtg-scheduled'].includes(type);
   const isExt=type==='union-extension'||type==='mgmt-extension';
-  if(extRow)extRow.style.display=isExt?'block':'none';
+  if(extRow){
+    extRow.style.display=isExt?'block':'none';
+    // Populate which-deadline datalist from current case's open deadlines
+    if(isExt&&activeCaseId){
+      const g=grievances.find(x=>x.id==activeCaseId);
+      const _mDl=document.getElementById('cf-modal-overlay');const _mDlOpen=_mDl&&_mDl.style.display!=='none';
+      const dl=(_mDlOpen&&_mDl.querySelector('#ext-deadline-list'))||document.getElementById('ext-deadline-list');
+      if(dl&&g){
+        const opts=[...deadlines.filter(d=>!d.done&&d.gnum===g.num).map(d=>d.name||''),
+          ...mgmtOwes.filter(m=>!m.received&&!m.superseded&&m.gnum===g.num).map(m=>m.what||'')];
+        dl.innerHTML=[...new Set(opts)].map(o=>`<option value="${escHtml(o)}">`).join('');
+      }
+    }
+  }
   if(mtgSchedRow){
     mtgSchedRow.style.display=isMtgSched?'block':'none';
     const lbl=mtgSchedRow.querySelector('label');
@@ -3188,6 +3292,29 @@ function addCaseEvent(){
   if(extNewDate)text+=' | New deadline: '+fmtDisplay(extNewDate);
   // Log the event — store plannedDate for timeline rendering
   cd.notes.push({id:Date.now(),text,type,date:dateVal,plannedDate:plannedDate||null,ts:new Date().toISOString(),url:evtUrl,docLabel:evtDocLabel});
+  // Extension: update existing deadline with new date
+  if((type==='union-extension'||type==='mgmt-extension')&&extNewDate&&g){
+    const extWhich=getF('cf-ext-which')?.value||'';
+    // Update grievance.deadline if it's the primary deadline being extended
+    if(!extWhich||extWhich==='deadline'){
+      g.deadline=extNewDate;sbSaveGrievance(g);
+    }
+    // Update matching open deadlines
+    const keyLC=extWhich.toLowerCase();
+    deadlines.forEach(dl=>{
+      if(dl.done||!dl.gnum||dl.gnum!==g.num)return;
+      if(!extWhich||(dl.name||'').toLowerCase().includes(keyLC)||(dl.cat||'').toLowerCase().includes(keyLC)){
+        dl.date=extNewDate;sbSaveDeadline(dl);
+      }
+    });
+    // Update matching open mgmt owes
+    mgmtOwes.forEach(mo=>{
+      if(mo.received||mo.superseded||!mo.gnum||mo.gnum!==g.num)return;
+      if(!extWhich||(mo.what||'').toLowerCase().includes(keyLC)){
+        mo.due=extNewDate;sbSaveMgmtOwes(mo);
+      }
+    });
+  }
   // Auto-create deadlines and mgmt owes entries
   const autoD=EVT_AUTO_DEADLINES[type]||[];
   const base=parseDate(dateVal)||new Date();
@@ -4139,7 +4266,8 @@ function openCaseFile(id){
             </div>
             <div id="cf-ext-row" style="display:none" class="form-row">
               <div class="form-field" style="flex:2"><label>Extension reason</label><input type="text" id="cf-ext-reason" placeholder="Mutual written agreement — reason..."></div>
-              <div class="form-field" style="max-width:150px"><label>New deadline</label><input type="date" id="cf-ext-newdate"></div>
+              <div class="form-field" style="max-width:150px"><label>New deadline date</label><input type="date" id="cf-ext-newdate"></div>
+              <div class="form-field" style="flex:2"><label>Which deadline <span style="font-weight:400;color:var(--text3)">(optional)</span></label><input type="text" id="cf-ext-which" placeholder="e.g. Step 1 response..." list="ext-deadline-list"><datalist id="ext-deadline-list"></datalist></div>
             </div>
             <div id="cf-evt-preview" style="display:none;background:#e1f5ee;border:1px solid #0f6e56;border-radius:var(--radius);padding:10px 12px;font-size:12px;color:#085041;margin-bottom:10px"></div>
             <button class="btn btn-primary btn-sm" onclick="addCaseEvent()">Log Event</button>
@@ -4624,9 +4752,12 @@ function renderCFEventDocs(){
 }
 
 function toggleDocLink(idx,btn){
-  if(!inp)return;
-  inp.style.display=inp.style.display==='none'?'inline-block':'none';
-  if(inp.style.display!=='none')inp.focus();
+  const _m=document.getElementById('cf-modal-overlay');const _mOpen=_m&&_m.style.display!=='none';
+  const inp=(_mOpen&&_m.querySelector('#doc-url-'+idx))||document.getElementById('doc-url-'+idx);
+  if(!inp){console.warn('doc-url-'+idx+' not found');return;}
+  const showing=inp.style.display!=='none';
+  inp.style.display=showing?'none':'inline-block';
+  if(!showing){inp.focus();}
 }
 
 function saveDocUrl(idx){
@@ -5081,6 +5212,117 @@ function updateTimeMetrics(){const td=today();const ws=new Date();ws.setDate(ws.
 function renderTimeLog(){const el=document.getElementById('time-log');if(!timeLog.length){el.innerHTML='<p style="font-size:13px;color:#aaa">No time logged yet.</p>';return;}let html='<table><thead><tr><th>Date</th><th>Category</th><th>Duration</th><th>Notes</th><th></th></tr></thead><tbody>';[...timeLog].reverse().forEach(e=>{html+=`<tr><td>${e.date}</td><td>${e.cat}</td><td>${Math.floor(e.mins/60)}h ${e.mins%60}m</td><td style="font-size:12px">${e.notes||'—'}</td><td><button class="btn btn-sm btn-danger" onclick="delT(${e.id})">✕</button></td></tr>`;});html+='</tbody></table>';el.innerHTML=html;}
 function delT(id){sbDeleteTimeLog(id);updateTimeMetrics();renderTimeLog();}
 
+// ── BATCH EVENT LOG ──────────────────────────────────────────────────
+function openBatchEventModal(){
+  const el=document.getElementById('batch-event-overlay');if(!el)return;
+  // Populate case list
+  const listEl=document.getElementById('batch-case-list');
+  const open=grievances.filter(g=>g.closed==='No').sort((a,b)=>{
+    const pa=parseGrievanceNum(a.num),pb=parseGrievanceNum(b.num);
+    return pa.y!==pb.y?pb.y-pa.y:pb.n-pa.n;
+  });
+  listEl.innerHTML=open.map(g=>`
+    <label style="display:flex;align-items:center;gap:8px;padding:6px 4px;border-bottom:1px solid #f5f5f5;cursor:pointer;font-size:12px">
+      <input type="checkbox" class="batch-case-cb" value="${g.id}" onchange="updateBatchCount()">
+      <span style="font-weight:600;color:var(--navy);min-width:70px">#${escHtml(g.num)}</span>
+      <span style="color:var(--text2);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(g.brief||g.type||'')}</span>
+      <span style="font-size:10px;color:var(--text3)">${escHtml(g.status||'')}</span>
+    </label>`).join('');
+  // Set default date to today
+  const dateEl=document.getElementById('batch-evt-date');
+  if(dateEl)dateEl.value=today();
+  updateBatchCount();
+  el.style.display='block';
+}
+
+function closeBatchEventModal(){
+  const el=document.getElementById('batch-event-overlay');
+  if(el)el.style.display='none';
+}
+
+function batchSelectAll(){
+  document.querySelectorAll('.batch-case-cb').forEach(cb=>cb.checked=true);
+  updateBatchCount();
+}
+
+function batchSelectNone(){
+  document.querySelectorAll('.batch-case-cb').forEach(cb=>cb.checked=false);
+  updateBatchCount();
+}
+
+function updateBatchCount(){
+  const n=document.querySelectorAll('.batch-case-cb:checked').length;
+  const el=document.getElementById('batch-selected-count');
+  if(el)el.textContent=n+' case'+(n===1?'':'s')+' selected';
+}
+
+function updateBatchEventForm(){
+  const type=document.getElementById('batch-evt-type')?.value||'';
+  const isMtgSched=['step1-mtg-scheduled','step2-mtg-scheduled','step3-mtg-scheduled','prearb-mtg-scheduled','arb-hearing-scheduled'].includes(type);
+  const mtgRow=document.getElementById('batch-mtg-row');
+  if(mtgRow)mtgRow.style.display=isMtgSched?'block':'none';
+}
+
+function parseGrievanceNum(num){
+  const m=(num||'').match(/(\d+)-(\d{4})/);
+  return m?{n:parseInt(m[1]),y:parseInt(m[2])}:{n:0,y:0};
+}
+
+async function submitBatchEvent(){
+  const selectedIds=[...document.querySelectorAll('.batch-case-cb:checked')].map(cb=>parseInt(cb.value));
+  if(!selectedIds.length){alert('Select at least one case.');return;}
+  const type=document.getElementById('batch-evt-type')?.value||'';
+  if(!type){alert('Select an event type.');return;}
+  const dateVal=document.getElementById('batch-evt-date')?.value||today();
+  const plannedDate=document.getElementById('batch-mtg-date')?.value||'';
+  const method=document.getElementById('batch-method')?.value||'';
+  const who=document.getElementById('batch-who')?.value.trim()||'';
+  const notes=document.getElementById('batch-notes')?.value.trim()||'';
+
+  // Build text
+  let text=EVT_LABELS[type]||type;
+  if(plannedDate)text+=' (planned '+fmtDisplay(plannedDate)+')';
+  const commParts=[];
+  if(method)commParts.push(method);
+  if(who)commParts.push('with '+who);
+  if(commParts.length)text+=' — '+commParts.join(', ');
+  if(notes)text+=': '+notes;
+
+  let count=0;
+  for(const gId of selectedIds){
+    const g=grievances.find(x=>x.id===gId);if(!g)continue;
+    const cd=getCaseData(gId);
+    cd.notes.push({id:Date.now()+Math.floor(Math.random()*1000),text,type,date:dateVal,
+      plannedDate:plannedDate||null,ts:new Date().toISOString()});
+    // Auto-deadlines
+    const autoD=EVT_AUTO_DEADLINES[type]||[];
+    const base=parseDate(dateVal)||new Date();
+    autoD.forEach(d=>{
+      const dl=new Date(base);dl.setDate(dl.getDate()+d.days);
+      const dlStr=isoDate(dl);
+      if(d.owner==='mgmt'&&d.moType){
+        const mo={id:Date.now()+Math.floor(Math.random()*999),what:d.label+' — Grievance #'+g.num,
+          type:d.moType,due:dlStr,gnum:g.num,contact:'',pri:'high',notes:'Batch logged',
+          received:false,receivedDate:'',created:today()};
+        mgmtOwes.unshift(mo);sbSaveMgmtOwes(mo);
+      } else if(d.owner==='union'){
+        const newDl={id:Date.now()+Math.floor(Math.random()*999),name:d.label+' — Grievance #'+g.num,
+          date:dlStr,cat:'Grievance step',gnum:g.num,notes:'Batch logged',done:false};
+        deadlines.push(newDl);sbSaveDeadline(newDl);
+      }
+    });
+    await sbSaveCaseData(gId);
+    count++;
+  }
+
+  closeBatchEventModal();
+  renderGrievances();renderGMetrics();
+  // Toast
+  const toast=document.createElement('div');
+  toast.style.cssText='position:fixed;bottom:24px;right:24px;background:var(--navy);color:#fff;padding:10px 18px;border-radius:var(--radius);font-size:13px;z-index:9999;box-shadow:0 4px 12px rgba(0,0,0,0.2)';
+  toast.textContent='⚡ Event logged to '+count+' case'+(count===1?'':'s');
+  document.body.appendChild(toast);setTimeout(()=>toast.remove(),3500);
+}
 // ── KEY CONTACTS / SETTINGS ───────────────────────────────────────────
 function renderKeyContacts(){
   const el=document.getElementById('settings-contacts-list');if(!el)return;
