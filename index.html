@@ -1339,6 +1339,7 @@ tr:hover td{background:#faf9f7}
         <div class="form-field" style="margin-bottom:14px"><label>Notes</label>
           <textarea id="batch-notes" rows="3" placeholder="Details applicable to all selected cases..." style="width:100%;font-size:13px;padding:6px 8px;border:1px solid var(--border);border-radius:var(--radius);font-family:inherit;resize:vertical"></textarea>
         </div>
+        <div id="batch-dupe-warning" style="display:none"></div>
         <div style="display:flex;align-items:center;justify-content:space-between">
           <span id="batch-selected-count" style="font-size:12px;color:var(--text3)">0 cases selected</span>
           <div style="display:flex;gap:8px">
@@ -2980,7 +2981,16 @@ function renderCFHealthBanner(){
     const sortedNotes=[...realNotes].filter(n=>n.type&&n.type!=='auto'&&n.type!=='status').sort((a,b)=>{
       const da=a.date?new Date(a.date+'T00:00:00'):new Date(a.ts);
       const db=b.date?new Date(b.date+'T00:00:00'):new Date(b.ts);
-      return db-da;
+      if(Math.abs(db-da)>86400000)return db-da; // Different days: sort by date
+      // Same day: prefer meeting/response events over filing events (more specific action)
+      const PRIORITY=['arb-hearing-held','prearb-meeting-held','step3-meeting-held','step2-meeting-held','step1-meeting-held',
+        'mgmt-response-step3','mgmt-response-step2','mgmt-response-step1','mgmt-denied','mgmt-info-received',
+        'step3-mtg-scheduled','step2-mtg-scheduled','step1-mtg-scheduled','arb-hearing-scheduled',
+        'union-filed-step3','union-filed-step2','union-filed-step1','union-filed-arb'];
+      const pa=PRIORITY.indexOf(a.type);const pb=PRIORITY.indexOf(b.type);
+      if(pa!==-1&&pb!==-1)return pa-pb;
+      if(pa!==-1)return -1;if(pb!==-1)return 1;
+      return new Date(b.ts)-new Date(a.ts); // Fall back to log timestamp
     });
     const lastEvt=sortedNotes[0]||null;
     const lastType=lastEvt?.type||'';
@@ -3334,11 +3344,21 @@ function addCaseEvent(){
   });
   // Auto-clear matching mgmt deadlines when a response is logged
   const RESPONSE_CLEARS={
-    'mgmt-response-step1':['oral reply','Step 1 written','Step 1 response'],
+    'mgmt-response-step1':['oral reply','Step 1 written','Step 1 response','schedule Step 1'],
     'mgmt-response-step2':['Step 2 written','Step 2 response','schedule Step 2'],
     'mgmt-response-step3':['Step 3 final','Step 3 response','schedule Step 3'],
-    'mgmt-info-received':['info request response'],
+    'mgmt-info-received':['info request response','info request'],
     'mgmt-response-received':['oral reply','written response','Step 1','Step 2','Step 3'],
+    // Meeting scheduled events clear the "schedule X meeting" obligation
+    'step1-mtg-scheduled':['schedule Step 1 meeting','Step 1 meeting'],
+    'step2-mtg-scheduled':['schedule Step 2 meeting','Step 2 meeting'],
+    'step3-mtg-scheduled':['schedule Step 3 meeting','Step 3 meeting'],
+    'prearb-mtg-scheduled':['schedule pre-arb','pre-arb meeting','pre-arbitration'],
+    'arb-hearing-scheduled':['arbitration hearing','schedule arb'],
+    // Meeting held events clear the scheduled meeting obligation
+    'step1-meeting-held':['schedule Step 1 meeting','Step 1 meeting'],
+    'step2-meeting-held':['schedule Step 2 meeting','Step 2 meeting'],
+    'step3-meeting-held':['schedule Step 3 meeting','Step 3 meeting'],
   };
   const clearKeywords=RESPONSE_CLEARS[type]||[];
   if(clearKeywords.length&&g){
@@ -5282,6 +5302,59 @@ async function submitBatchEvent(){
   const who=document.getElementById('batch-who')?.value.trim()||'';
   const notes=document.getElementById('batch-notes')?.value.trim()||'';
 
+  // ── Dedup check: warn if any selected case already has this event type ──
+  const THIRTY_DAYS=30*24*60*60*1000;
+  const now=new Date();
+  const duplicates=[];
+  selectedIds.forEach(gId=>{
+    const g=grievances.find(x=>x.id===gId);if(!g)return;
+    const cd=getCaseData(gId);
+    const recent=(cd.notes||[]).filter(n=>n.type===type&&(now-new Date(n.ts||0))<THIRTY_DAYS);
+    if(recent.length)duplicates.push({g,recent});
+  });
+
+  if(duplicates.length){
+    // Show confirmation panel in modal
+    const dupeEl=document.getElementById('batch-dupe-warning');
+    if(dupeEl){
+      dupeEl.style.display='block';
+      dupeEl.innerHTML=`<div style="background:#fff8e1;border:1px solid var(--amber);border-radius:var(--radius);padding:12px 14px;margin-bottom:12px">
+        <div style="font-size:12px;font-weight:700;color:#7a3a00;margin-bottom:8px">⚠ ${duplicates.length} case(s) already have this event type in the last 30 days:</div>
+        ${duplicates.map(({g,recent})=>`
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+            <input type="checkbox" class="batch-skip-cb" value="${g.id}" checked>
+            <span style="font-size:12px;font-weight:600;color:var(--navy)">#${escHtml(g.num)}</span>
+            <span style="font-size:11px;color:var(--text3)">${escHtml(g.brief||'')} — last: ${fmtDisplay(recent[0].date||'')} (${escHtml(recent[0].type)})</span>
+          </div>`).join('')}
+        <div style="font-size:11px;color:#7a3a00;margin-top:8px">Checked cases will be <strong>skipped</strong>. Uncheck to log anyway.</div>
+        <div style="display:flex;gap:8px;margin-top:10px">
+          <button class="btn btn-primary btn-sm" onclick="confirmBatchEvent()">Proceed with selection</button>
+          <button class="btn btn-sm" onclick="document.getElementById('batch-dupe-warning').style.display='none'">Go back</button>
+        </div>
+      </div>`;
+      return; // Wait for user to confirm
+    }
+  }
+
+  await executeBatchEvent(selectedIds,type,dateVal,plannedDate,method,who,notes);
+}
+
+async function confirmBatchEvent(){
+  const skipIds=new Set([...document.querySelectorAll('.batch-skip-cb:checked')].map(cb=>parseInt(cb.value)));
+  const allSelectedIds=[...document.querySelectorAll('.batch-case-cb:checked')].map(cb=>parseInt(cb.value));
+  const finalIds=allSelectedIds.filter(id=>!skipIds.has(id));
+  const type=document.getElementById('batch-evt-type')?.value||'';
+  const dateVal=document.getElementById('batch-evt-date')?.value||today();
+  const plannedDate=document.getElementById('batch-mtg-date')?.value||'';
+  const method=document.getElementById('batch-method')?.value||'';
+  const who=document.getElementById('batch-who')?.value.trim()||'';
+  const notes=document.getElementById('batch-notes')?.value.trim()||'';
+  document.getElementById('batch-dupe-warning').style.display='none';
+  if(!finalIds.length){closeBatchEventModal();return;}
+  await executeBatchEvent(finalIds,type,dateVal,plannedDate,method,who,notes);
+}
+
+async function executeBatchEvent(selectedIds,type,dateVal,plannedDate,method,who,notes){
   // Build text
   let text=EVT_LABELS[type]||type;
   if(plannedDate)text+=' (planned '+fmtDisplay(plannedDate)+')';
