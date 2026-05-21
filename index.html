@@ -3973,7 +3973,7 @@ function renderGrievances(){
   html+='<th></th></tr></thead><tbody>';
   list.forEach(g=>{
     let dlHtml='—',dlCls='';
-    if(g.deadline){const df=diffDays(g.deadline);dlHtml=g.deadline;if(df<0){dlCls='overdue';dlHtml+=' <small>(overdue)</small>';}else if(df===0){dlCls='overdue';dlHtml='Today';}else if(df!==null&&df<=7)dlCls='overdue';}
+    if(g.deadline){const df=diffDays(g.deadline);dlHtml=fmtDisplay(g.deadline);if(df<0){dlCls='overdue';dlHtml+=' <small>(overdue)</small>';}else if(df===0){dlCls='overdue';dlHtml='Today';}else if(df!==null&&df<=7)dlCls='overdue';}
     const imp=g.imported?`<span class="badge b-import" style="cursor:pointer" title="Click to clear import flag" onclick="clearImportFlag(${g.id});event.stopPropagation()">Imp ✕</span> `:'';
     const member=[g.firstName,g.lastName].filter(Boolean).join(' ')||'—';
     const cd=caseData[g.id];const noteCount=cd?cd.notes.length:0;
