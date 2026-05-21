@@ -3327,6 +3327,20 @@ function addCaseEvent(){
         mo.due=extNewDate;sbSaveMgmtOwes(mo);
       }
     });
+    // Update info request due dates if extension relates to IR
+    const isIRExtension=!extWhich||extWhich.toLowerCase().includes('info')||extWhich.toLowerCase().includes('ir');
+    if(isIRExtension){
+      const cd=getCaseData(g.id);
+      let irUpdated=false;
+      (cd.infoRequests||[]).forEach(ir=>{
+        if(ir.received)return;
+        // Update if no specific which, or if ir.what matches the keyword
+        if(!extWhich||ir.what.toLowerCase().includes(keyLC)){
+          ir.due=extNewDate;irUpdated=true;
+        }
+      });
+      if(irUpdated)sbSaveCaseData(g.id);
+    }
   }
   // Auto-create deadlines and mgmt owes entries
   const autoD=EVT_AUTO_DEADLINES[type]||[];
