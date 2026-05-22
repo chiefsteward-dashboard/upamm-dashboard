@@ -6347,12 +6347,17 @@ function getNewFormSubmissionCount(){
   }catch(e){return 0;}
 }
 
-async function fetchSheetRows(sheetId){
+async function fetchSheetRows(sheetId,retry=0){
   if(!await ensureGoogleToken())return null;
   try{
     const url=`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/A:AZ`;
     const res=await fetch(url,{headers:{'Authorization':'Bearer '+googleAccessToken}});
-    if(!res.ok){console.error('Sheet fetch error',res.status);return null;}
+    if(res.status===429&&retry<3){
+      // Rate limited — wait and retry
+      await new Promise(r=>setTimeout(r,3000*(retry+1)));
+      return fetchSheetRows(sheetId,retry+1);
+    }
+    if(!res.ok){console.error('Sheet fetch error',res.status,await res.text());return null;}
     const data=await res.json();
     return data.values||[];
   }catch(e){console.error('fetchSheetRows error',e);return null;}
@@ -6416,9 +6421,13 @@ async function importFormSheet(type){
 }
 
 async function importAllForms(){
+  const delay=ms=>new Promise(r=>setTimeout(r,ms));
   await importFormSheet('adoShort');
+  await delay(1200);
   await importFormSheet('adoFull');
+  await delay(1200);
   await importFormSheet('wlr');
+  await delay(1200);
   await importFormSheet('intake');
 }
 
