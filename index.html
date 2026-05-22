@@ -6353,11 +6353,18 @@ async function fetchSheetRows(sheetId,retry=0){
     const url=`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/A:AZ?majorDimension=ROWS&valueRenderOption=FORMATTED_VALUE`;
     const res=await fetch(url,{headers:{'Authorization':'Bearer '+googleAccessToken,'Accept':'application/json'}});
     if(res.status===429&&retry<3){
-      // Rate limited — wait and retry
       await new Promise(r=>setTimeout(r,3000*(retry+1)));
       return fetchSheetRows(sheetId,retry+1);
     }
-    if(!res.ok){console.error('Sheet fetch error',res.status,await res.text());return null;}
+    if(!res.ok){
+      const errText=await res.text();
+      console.error('Sheet fetch error',res.status,errText);
+      // Show specific error in UI
+      const errMsg=res.status===403?'Permission denied — check Sheet is shared with your Google account':
+        res.status===401?'Google token expired — sign out and back in':
+        'Error '+res.status+' — '+errText.substring(0,100);
+      return {_error:errMsg};
+    }
     const data=await res.json();
     return data.values||[];
   }catch(e){console.error('fetchSheetRows error',e);return null;}
@@ -6373,8 +6380,9 @@ async function importFormSheet(type){
   if(statusEl)statusEl.innerHTML='<span style="color:var(--amber)">Checking...</span>';
 
   const rows=await fetchSheetRows(sheetId);
-  if(!rows){
-    if(statusEl)statusEl.innerHTML='<span style="color:var(--red)">Error — check Google connection</span>';
+  if(!rows||rows._error){
+    const msg=rows?rows._error:'Could not reach Google — check connection';
+    if(statusEl)statusEl.innerHTML=`<span style="color:var(--red)" title="${msg}">Error — ${msg}</span>`;
     return;
   }
   if(rows.length<2){
