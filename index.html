@@ -757,6 +757,7 @@ tr:hover td{background:#faf9f7}
     <!-- Tabs -->
     <div style="display:flex;gap:0;border-bottom:1px solid var(--border);margin-bottom:16px">
       <button class="cf-tab active" onclick="setCFTab('activity',this)">Event Log</button>
+      <button class="cf-tab" onclick="setCFTab('intake',this)">📋 Intake</button>
       <button class="cf-tab" onclick="setCFTab('inforeq',this)">Info Requests</button>
       <button class="cf-tab" onclick="setCFTab('checklist',this)">Documents</button>
       <button class="cf-tab" onclick="setCFTab('meetings',this)">Linked Meetings</button>
@@ -1504,7 +1505,7 @@ async function sbDeleteGrievance(id){grievances=grievances.filter(g=>g.id!=id);a
 async function sbSaveCaseData(gId){
   const cd=getCaseData(gId);
   updateCaseSaveStatus('saving');
-  const {error}=await sb.from('case_data').upsert({grievance_id:gId,notes:cd.notes||[],docs:cd.docs||[],info_requests:cd.infoRequests||[],scratchpad:cd.scratchpad||'',last_edited_by:currentUserName(),last_edited_at:new Date().toISOString()},{onConflict:'grievance_id'});
+  const {error}=await sb.from('case_data').upsert({grievance_id:gId,notes:cd.notes||[],docs:cd.docs||[],info_requests:cd.infoRequests||[],scratchpad:cd.scratchpad||'',intake:cd.intake||{},last_edited_by:currentUserName(),last_edited_at:new Date().toISOString()},{onConflict:'grievance_id'});
   if(error){console.error('case_data save error',error);updateCaseSaveStatus('error');}
   else{updateCaseSaveStatus('saved');}
 }
@@ -1666,7 +1667,7 @@ async function loadAllData(){
     caseData[row.grievance_id]={
       notes:row.notes||[],
       docs:row.docs||DEFAULT_DOCS.map(d=>({text:d,done:false,custom:false})),
-      infoRequests:row.info_requests||[],scratchpad:row.scratchpad||''
+      infoRequests:row.info_requests||[],scratchpad:row.scratchpad||'',intake:row.intake||{}
     };
   });
 }
@@ -2898,15 +2899,30 @@ function calcAllOutstandingDeadlines(gId){
     }
   }
 
-  // Track 2: Outstanding info requests — each unfulfilled one gets its own deadline
-  const infoNotes=realNotes.filter(n=>n.type==='union-info-request').sort((a,b)=>new Date(b.ts)-new Date(a.ts));
-  // Check which ones are fulfilled
-  const fulfilledDates=new Set(realNotes.filter(n=>n.type==='mgmt-info-received').map(n=>n.date));
-  infoNotes.forEach(n=>{
-    // Consider fulfilled if there's a mgmt-info-received logged after this info request
-    const nTs=new Date(n.ts);
+  // Track 2: Outstanding info requests — prefer stored ir.due over calculated date
+  // First check infoRequests[] for stored records with explicit due dates
+  const storedIRs=(cd.infoRequests||[]).filter(ir=>!ir.received);
+  storedIRs.forEach(ir=>{
+    const nTs=new Date(ir.id||0);
     const isFulfilled=realNotes.some(x=>x.type==='mgmt-info-received'&&new Date(x.ts)>nTs);
     if(!isFulfilled){
+      // Use stored due date if available, otherwise calculate from filed date + 14d
+      let dueDate=ir.due||null;
+      if(!dueDate&&ir.date){const base=parseDate(ir.date);if(base)dueDate=isoDate(addD(base,14));}
+      if(dueDate){
+        const label='Mgmt: info request response due (Art. 16 Sec. 3)'+(ir.what?': '+ir.what.substring(0,40):'');
+        result.push({label,date:dueDate,owner:'mgmt',track:'Info Request'});
+      }
+    }
+  });
+  // Also catch any event-log IRs not yet in infoRequests[]
+  const infoNotes=realNotes.filter(n=>n.type==='union-info-request').sort((a,b)=>new Date(b.ts)-new Date(a.ts));
+  infoNotes.forEach(n=>{
+    const nTs=new Date(n.ts);
+    const isFulfilled=realNotes.some(x=>x.type==='mgmt-info-received'&&new Date(x.ts)>nTs);
+    // Skip if already covered by a stored IR record
+    const alreadyCovered=storedIRs.some(ir=>ir.date===n.date||(n.text&&(ir.what||'').substring(0,20).toLowerCase()===(n.text||'').substring(0,20).toLowerCase()));
+    if(!isFulfilled&&!alreadyCovered){
       const base=n.date?parseDate(n.date):new Date(n.ts);
       if(base){
         const autoD=EVT_AUTO_DEADLINES['union-info-request']||[];
@@ -3341,6 +3357,19 @@ function addCaseEvent(){
       });
       if(irUpdated)sbSaveCaseData(g.id);
     }
+  }
+  // Bidirectional sync: event log → Info Requests tab
+  if(type==='union-info-request'&&g){
+    const cd2=getCaseData(g.id);
+    // Extract what was requested from notes text
+    const what=notes||text.replace(/^Information request filed[^:]*:\s*/,'').substring(0,120)||'Information request';
+    const base2=parseDate(dateVal)||new Date();
+    const due14=new Date(base2);due14.setDate(due14.getDate()+14);
+    const newIR={id:Date.now(),what,how:commMethod||'Written — email',to:commWho||'',
+      date:dateVal,due:isoDate(due14),url:evtUrl||'',notes:'',received:false,receivedDate:'',responseUrl:'',responseNotes:''};
+    if(!cd2.infoRequests)cd2.infoRequests=[];
+    cd2.infoRequests.push(newIR);
+    // Save happens below via sbSaveCaseData
   }
   // Auto-create deadlines and mgmt owes entries
   const autoD=EVT_AUTO_DEADLINES[type]||[];
@@ -4165,7 +4194,7 @@ function openCaseFile(id){
   // Tabs
   const tabBar=document.createElement('div');
   tabBar.style.cssText='display:flex;gap:0;border-bottom:1px solid var(--border);margin:16px 0';
-  const tabNames=[['activity','Activity / Status'],['inforeq','Info Requests'],['checklist','Documents'],['meetings','Linked Meetings'],['refs','References'],['prep','Meeting Prep']];
+  const tabNames=[['activity','Activity / Status'],['intake','📋 Intake'],['inforeq','Info Requests'],['checklist','Documents'],['meetings','Linked Meetings'],['refs','References'],['prep','Meeting Prep']];
   tabNames.forEach(([name,label],i)=>{
     const btn=document.createElement('button');
     btn.className='cf-tab'+(i===0?' active':'');
@@ -4177,6 +4206,272 @@ function openCaseFile(id){
 
   // Tab content containers — built fresh to avoid duplicate IDs
   const tabHTMLBuilders={
+    intake:()=>`
+      <div style="max-width:900px">
+        <!-- Part 1 Header -->
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:8px">
+          <div>
+            <div style="font-size:15px;font-weight:700;color:var(--navy)">Member Intake Form</div>
+            <div style="font-size:11px;color:var(--text3);margin-top:2px">Complete Part 1 with the member. Part 2 is steward-only (internal).</div>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button class="btn btn-sm" onclick="printIntakeForm()" style="font-size:11px">🖨 Print Part 1</button>
+            <button class="btn btn-sm" onclick="driveExportIntake()" style="font-size:11px;color:var(--teal);border-color:var(--teal)">☁ Save to Drive</button>
+            <button class="btn btn-primary btn-sm" onclick="saveIntakeData()" style="font-size:11px">💾 Save intake</button>
+          </div>
+        </div>
+
+        <!-- PART 1: MEMBER SECTION -->
+        <div style="border:2px solid var(--navy);border-radius:var(--radius);margin-bottom:16px;overflow:hidden">
+          <div style="background:var(--navy);color:#fff;padding:10px 16px;font-size:12px;font-weight:700;letter-spacing:.05em;text-transform:uppercase">Part 1 — Member Information & Account</div>
+          <div style="padding:16px">
+
+            <!-- Member Info -->
+            <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid var(--border)">Member Information</div>
+            <div class="form-row" style="flex-wrap:wrap">
+              <div class="form-field" style="flex:2;min-width:180px"><label>Full name</label><input type="text" id="itk-name" placeholder="Pre-populated from case details"></div>
+              <div class="form-field" style="flex:1;min-width:140px"><label>Phone</label><input type="text" id="itk-phone" placeholder="Best contact number"></div>
+              <div class="form-field" style="flex:2;min-width:180px"><label>Email</label><input type="text" id="itk-email" placeholder="Work or personal email"></div>
+            </div>
+            <div class="form-row" style="flex-wrap:wrap">
+              <div class="form-field" style="flex:2;min-width:180px"><label>Department / Unit</label><input type="text" id="itk-dept" placeholder="e.g. Inpatient BMT, Cancer Center PA team"></div>
+              <div class="form-field" style="flex:1;min-width:140px"><label>Supervisor</label><input type="text" id="itk-supervisor" placeholder="Direct supervisor name"></div>
+              <div class="form-field" style="flex:1;min-width:120px"><label>Employment status</label>
+                <select id="itk-emp-status"><option value="">— Select —</option><option>Full-time</option><option>Part-time</option><option>Per diem</option><option>Other</option></select>
+              </div>
+              <div class="form-field" style="max-width:100px"><label>Shift</label>
+                <select id="itk-shift"><option value="">—</option><option>Days</option><option>Evenings</option><option>Nights</option><option>Rotating</option></select>
+              </div>
+              <div class="form-field" style="max-width:100px"><label>Years at MM</label><input type="number" id="itk-years" min="0" max="50" placeholder="0"></div>
+            </div>
+            <div class="form-row" style="flex-wrap:wrap">
+              <div class="form-field" style="flex:1;min-width:180px"><label>Best time to reach</label><input type="text" id="itk-best-time" placeholder="e.g. Weekday mornings, after 3pm"></div>
+              <div class="form-field" style="flex:1;min-width:180px"><label>Any scheduling constraints</label><input type="text" id="itk-constraints" placeholder="e.g. FMLA leave, night shift, travel"></div>
+            </div>
+
+            <!-- Incident -->
+            <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin:14px 0 10px;padding-bottom:6px;border-bottom:1px solid var(--border)">Incident / Issue</div>
+            <div class="form-row" style="flex-wrap:wrap">
+              <div class="form-field" style="max-width:150px"><label>Date of incident</label><input type="date" id="itk-incident-date"></div>
+              <div class="form-field" style="max-width:160px"><label>Date member became aware</label><input type="date" id="itk-aware-date"></div>
+              <div class="form-field" style="max-width:160px"><label>Date reported to supervisor</label><input type="date" id="itk-reported-date"></div>
+              <div class="form-field" style="flex:1;min-width:180px"><label>Location of incident</label><input type="text" id="itk-location" placeholder="e.g. Unit, floor, building"></div>
+            </div>
+            <div class="form-field" style="margin-bottom:10px"><label>Detailed description of what happened <span style="color:var(--red)">*</span></label>
+              <textarea id="itk-description" rows="5" placeholder="In the member's own words — what happened, when, who was involved, what was said or done..." style="width:100%;font-size:12px;padding:8px;border:1px solid var(--border);border-radius:var(--radius);font-family:inherit;resize:vertical"></textarea>
+            </div>
+            <div class="form-row" style="flex-wrap:wrap">
+              <div class="form-field" style="flex:1">
+                <label>Has this happened before?</label>
+                <select id="itk-happened-before" onchange="document.getElementById('itk-before-details-row').style.display=this.value==='Yes'?'flex':'none'">
+                  <option value="">— Select —</option><option>Yes</option><option>No</option>
+                </select>
+              </div>
+              <div class="form-field" style="flex:1">
+                <label>Is this a potential class grievance? (affects multiple members)</label>
+                <select id="itk-class" onchange="document.getElementById('itk-class-details-row').style.display=this.value==='Yes'?'flex':'none'">
+                  <option value="">— Select —</option><option>Yes</option><option>No</option><option>Unknown</option>
+                </select>
+              </div>
+            </div>
+            <div class="form-row" id="itk-before-details-row" style="display:none">
+              <div class="form-field" style="flex:1"><label>Prior occurrence details</label><textarea id="itk-before-details" rows="2" placeholder="When, what happened, any prior grievances filed..." style="width:100%;font-size:12px;padding:6px 8px;border:1px solid var(--border);border-radius:var(--radius);font-family:inherit;resize:vertical"></textarea></div>
+            </div>
+            <div class="form-row" id="itk-class-details-row" style="display:none">
+              <div class="form-field" style="flex:1"><label>Other affected members</label><input type="text" id="itk-class-details" placeholder="Names or description of others affected"></div>
+            </div>
+
+            <!-- Prior attempts -->
+            <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin:14px 0 10px;padding-bottom:6px;border-bottom:1px solid var(--border)">Prior Attempts to Resolve</div>
+            <div class="form-row" style="flex-wrap:wrap">
+              <div class="form-field" style="flex:1">
+                <label>Did member attempt to resolve informally?</label>
+                <select id="itk-prior-attempt" onchange="document.getElementById('itk-prior-details-row').style.display=this.value==='Yes'?'flex':'none'">
+                  <option value="">— Select —</option><option>Yes</option><option>No</option>
+                </select>
+              </div>
+            </div>
+            <div class="form-row" id="itk-prior-details-row" style="display:none;flex-wrap:wrap">
+              <div class="form-field" style="flex:1"><label>What was tried, with whom, and what was the outcome?</label><textarea id="itk-prior-details" rows="2" placeholder="e.g. Spoke with supervisor on 3/15, was told..." style="width:100%;font-size:12px;padding:6px 8px;border:1px solid var(--border);border-radius:var(--radius);font-family:inherit;resize:vertical"></textarea></div>
+            </div>
+
+            <!-- Written discipline -->
+            <div class="form-row" style="flex-wrap:wrap;margin-top:10px">
+              <div class="form-field" style="flex:1">
+                <label>Was member given a written notice or discipline document?</label>
+                <select id="itk-written-discipline" onchange="document.getElementById('itk-discipline-details-row').style.display=this.value==='Yes'?'flex':'none'">
+                  <option value="">— Select —</option><option>Yes</option><option>No</option>
+                </select>
+              </div>
+            </div>
+            <div class="form-row" id="itk-discipline-details-row" style="display:none">
+              <div class="form-field" style="flex:1"><label>Description of written notice / discipline</label><input type="text" id="itk-discipline-details" placeholder="Type of notice, date, what it said"></div>
+            </div>
+
+            <!-- Weingarten -->
+            <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin:14px 0 10px;padding-bottom:6px;border-bottom:1px solid var(--border)">Weingarten Rights</div>
+            <div class="form-row" style="flex-wrap:wrap">
+              <div class="form-field" style="flex:1"><label>Was this a Weingarten situation? (investigatory meeting)</label>
+                <select id="itk-weingarten"><option value="">— Select —</option><option>Yes</option><option>No</option><option>Unsure</option></select>
+              </div>
+              <div class="form-field" style="flex:1"><label>Was union rep requested?</label>
+                <select id="itk-rep-requested"><option value="">— Select —</option><option>Yes</option><option>No</option><option>N/A</option></select>
+              </div>
+              <div class="form-field" style="flex:1"><label>Was request honored?</label>
+                <select id="itk-rep-honored"><option value="">— Select —</option><option>Yes</option><option>No</option><option>N/A</option></select>
+              </div>
+            </div>
+
+            <!-- Witnesses -->
+            <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin:14px 0 10px;padding-bottom:6px;border-bottom:1px solid var(--border)">Witnesses</div>
+            <div id="itk-witnesses-list" style="margin-bottom:8px"></div>
+            <button class="btn btn-sm" onclick="addIntakeWitness()" style="font-size:11px">+ Add witness</button>
+
+            <!-- Supporting docs -->
+            <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin:14px 0 10px;padding-bottom:6px;border-bottom:1px solid var(--border)">Supporting Documentation</div>
+            <div style="font-size:12px;color:var(--text2);margin-bottom:8px">What does the member have or can provide?</div>
+            <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px" id="itk-docs-checklist">
+              ${['Emails / messages','Schedules / timesheets','Written warnings / notices','Pay stubs / payroll records','Policies / procedures','Prior grievance records','Personal notes / diary','Photos or screenshots','Other employees\' statements','Other'].map(d=>`
+                <label style="display:flex;align-items:center;gap:5px;font-size:12px;background:#f9f8f6;padding:4px 10px;border-radius:99px;border:1px solid var(--border);cursor:pointer">
+                  <input type="checkbox" data-doc="${d}" onchange=""> ${d}
+                </label>`).join('')}
+            </div>
+
+            <!-- Timeline of events -->
+            <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin:14px 0 10px;padding-bottom:6px;border-bottom:1px solid var(--border)">Timeline of Events</div>
+            <div style="font-size:11px;color:var(--text3);margin-bottom:8px">Build a chronological record — add each significant event</div>
+            <div id="itk-timeline-list" style="margin-bottom:8px"></div>
+            <button class="btn btn-sm" onclick="addIntakeTimelineEntry()" style="font-size:11px">+ Add event</button>
+
+            <!-- Remedy -->
+            <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin:14px 0 10px;padding-bottom:6px;border-bottom:1px solid var(--border)">Remedy Sought</div>
+            <div class="form-field"><label>What does the member want as an outcome? <span style="color:var(--red)">*</span></label>
+              <textarea id="itk-remedy" rows="3" placeholder="In the member's own words — what resolution are they seeking?" style="width:100%;font-size:12px;padding:8px;border:1px solid var(--border);border-radius:var(--radius);font-family:inherit;resize:vertical"></textarea>
+            </div>
+
+            <!-- Member background -->
+            <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin:14px 0 10px;padding-bottom:6px;border-bottom:1px solid var(--border)">Member Background</div>
+            <div class="form-row" style="flex-wrap:wrap">
+              <div class="form-field" style="flex:1"><label>Has member filed a grievance before?</label>
+                <select id="itk-prior-grievance"><option value="">— Select —</option><option>Yes</option><option>No</option></select>
+              </div>
+              <div class="form-field" style="flex:1"><label>Any relevant prior discipline on record?</label>
+                <select id="itk-prior-discipline" onchange="document.getElementById('itk-prior-disc-detail-row').style.display=this.value==='Yes'?'flex':'none'">
+                  <option value="">— Select —</option><option>Yes</option><option>No</option><option>Unknown</option>
+                </select>
+              </div>
+              <div class="form-field" style="flex:1"><label>Is member aware of the grievance process?</label>
+                <select id="itk-process-aware"><option value="">— Select —</option><option>Yes</option><option>No — needs explanation</option></select>
+              </div>
+            </div>
+            <div class="form-row" id="itk-prior-disc-detail-row" style="display:none">
+              <div class="form-field" style="flex:1"><label>Prior discipline details</label><input type="text" id="itk-prior-disc-detail" placeholder="Brief description of prior discipline"></div>
+            </div>
+            <div class="form-row" style="flex-wrap:wrap">
+              <div class="form-field" style="flex:1"><label>Has member spoken to others about this issue?</label>
+                <select id="itk-spoken-others"><option value="">— Select —</option><option>Yes — coworkers</option><option>Yes — HR</option><option>Yes — other union reps</option><option>No</option></select>
+              </div>
+              <div class="form-field" style="flex:1"><label>Is member concerned about retaliation?</label>
+                <select id="itk-retaliation"><option value="">— Select —</option><option>Yes</option><option>No</option><option>Somewhat</option></select>
+              </div>
+              <div class="form-field" style="flex:1"><label>Member's state of mind at intake</label>
+                <select id="itk-member-state"><option value="">— Select —</option><option>Calm</option><option>Upset</option><option>Fearful</option><option>Angry</option><option>Distressed</option><option>Matter-of-fact</option></select>
+              </div>
+            </div>
+
+          </div><!-- /part 1 body -->
+        </div><!-- /part 1 -->
+
+        <!-- PART 2: STEWARD ASSESSMENT (INTERNAL) -->
+        <div style="border:2px solid var(--purple);border-radius:var(--radius);margin-bottom:16px;overflow:hidden">
+          <div style="background:var(--purple);color:#fff;padding:10px 16px;font-size:12px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;display:flex;align-items:center;gap:8px">
+            <span>Part 2 — Steward Assessment</span>
+            <span style="font-size:10px;font-weight:400;background:rgba(255,255,255,0.2);padding:2px 8px;border-radius:99px">Internal — not printed for member</span>
+          </div>
+          <div style="padding:16px">
+
+            <!-- Contract / Policy -->
+            <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid var(--border)">Contract & Policy Analysis</div>
+            <div class="form-row" style="flex-wrap:wrap">
+              <div class="form-field" style="flex:1"><label>Articles potentially violated <span style="font-size:10px;color:var(--text3)">(pre-filled from case)</span></label>
+                <input type="text" id="itk-articles" placeholder="e.g. 38, 41">
+              </div>
+            </div>
+            <div class="form-field" style="margin-bottom:10px"><label>Specific contract language that applies</label>
+              <textarea id="itk-contract-language" rows="3" placeholder="Quote or reference the relevant CBA language..." style="width:100%;font-size:12px;padding:8px;border:1px solid var(--border);border-radius:var(--radius);font-family:inherit;resize:vertical"></textarea>
+            </div>
+            <div class="form-field"><label>Any management policy or procedure cited by mgmt</label>
+              <textarea id="itk-mgmt-policy" rows="2" placeholder="Policy number, name, or description..." style="width:100%;font-size:12px;padding:8px;border:1px solid var(--border);border-radius:var(--radius);font-family:inherit;resize:vertical"></textarea>
+            </div>
+
+            <!-- WLR specific -->
+            <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin:14px 0 10px;padding-bottom:6px;border-bottom:1px solid var(--border)">Workload Review (if applicable)</div>
+            <div class="form-row" style="flex-wrap:wrap">
+              <div class="form-field" style="flex:1"><label>Current workload / caseload numbers</label><input type="text" id="itk-wlr-numbers" placeholder="e.g. 18 patients/day, 3 procedures..."></div>
+              <div class="form-field" style="flex:1"><label>Comparator data available?</label>
+                <select id="itk-wlr-comparator"><option value="">— Select —</option><option>Yes</option><option>No</option><option>Will obtain</option></select>
+              </div>
+              <div class="form-field" style="flex:1"><label>Member tracked their own hours/workload?</label>
+                <select id="itk-wlr-tracked"><option value="">— Select —</option><option>Yes</option><option>No</option><option>Partial</option></select>
+              </div>
+            </div>
+
+            <!-- Grievability -->
+            <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin:14px 0 10px;padding-bottom:6px;border-bottom:1px solid var(--border)">Grievability Assessment</div>
+            <div class="form-row" style="flex-wrap:wrap">
+              <div class="form-field" style="flex:1"><label>Grievability</label>
+                <select id="itk-grievability">
+                  <option value="">— Select —</option>
+                  <option value="strong">Strong — clear contract violation</option>
+                  <option value="possible">Possible — arguable</option>
+                  <option value="weak">Weak — limited contract basis</option>
+                  <option value="unknown">Unknown — needs more info</option>
+                  <option value="wlr">WLR track — not a step grievance</option>
+                </select>
+              </div>
+              <div class="form-field" style="flex:1"><label>Priority</label>
+                <select id="itk-priority">
+                  <option value="">— Select —</option>
+                  <option value="high">High — time sensitive or serious</option>
+                  <option value="med">Medium — standard processing</option>
+                  <option value="low">Low — monitor</option>
+                </select>
+              </div>
+            </div>
+            <div class="form-field" style="margin-bottom:10px"><label>Steward's assessment of likely remedy</label>
+              <textarea id="itk-remedy-assessment" rows="2" placeholder="Your view on what's achievable vs what member wants..." style="width:100%;font-size:12px;padding:8px;border:1px solid var(--border);border-radius:var(--radius);font-family:inherit;resize:vertical"></textarea>
+            </div>
+            <div class="form-field" style="margin-bottom:10px"><label>Recommended next step</label>
+              <select id="itk-next-step" style="width:100%">
+                <option value="">— Select —</option>
+                <option>File Step 1 grievance</option>
+                <option>Initiate WLR process</option>
+                <option>Attempt informal resolution first</option>
+                <option>Gather more information</option>
+                <option>Consult with Chief Steward</option>
+                <option>Refer to officer meeting</option>
+                <option>Monitor — not yet actionable</option>
+                <option>Does not meet grievance threshold</option>
+              </select>
+            </div>
+            <div class="form-field"><label>Steward notes to file <span style="font-size:10px;color:var(--text3)">(internal strategy notes)</span></label>
+              <textarea id="itk-steward-notes" rows="4" placeholder="Strengths, weaknesses, strategy, member concerns, anything to flag for next steps..." style="width:100%;font-size:12px;padding:8px;border:1px solid var(--border);border-radius:var(--radius);font-family:inherit;resize:vertical"></textarea>
+            </div>
+
+            <!-- Completion -->
+            <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin:14px 0 10px;padding-bottom:6px;border-bottom:1px solid var(--border)">Completion</div>
+            <div class="form-row" style="flex-wrap:wrap">
+              <div class="form-field" style="max-width:160px"><label>Date intake completed</label><input type="date" id="itk-completed-date"></div>
+              <div class="form-field" style="flex:1"><label>Completed by</label><input type="text" id="itk-completed-by" placeholder="Auto-filled on save"></div>
+            </div>
+
+            <!-- 21-day warning -->
+            <div id="itk-timeliness-banner" style="display:none;background:#fcebeb;border:1px solid var(--red);border-radius:var(--radius);padding:10px 14px;margin-top:12px;font-size:12px;color:var(--red)"></div>
+
+          </div><!-- /part 2 body -->
+        </div><!-- /part 2 -->
+      </div>
+    `,
     activity:()=>`
       <div id="cf-health-banner" style="background:var(--navy);color:#fff;border-radius:var(--radius);padding:12px 16px;margin-bottom:14px"></div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start">
@@ -4642,7 +4937,7 @@ function closeCaseFile(){
   document.getElementById('case-file-view').style.display='none';
   // Reset tabs
   document.querySelectorAll('.cf-tab').forEach((t,i)=>t.classList.toggle('active',i===0));
-  ['activity','inforeq','checklist','meetings','refs','prep'].forEach((t,i)=>{
+  ['activity','intake','inforeq','checklist','meetings','refs','prep'].forEach((t,i)=>{
     const el=document.getElementById('cf-tab-'+t);if(el)el.style.display=i===0?'block':'none';
   });
 }
@@ -4661,6 +4956,7 @@ function setCFTab(name,btn){
   if(name==='prep')renderPrepChecklist();
   if(name==='inforeq')renderCFInfoReq();
   if(name==='refs')renderCFRefs();
+  if(name==='intake')renderCFIntake();
   // Re-run form state when activity tab is shown
   if(name==='activity'){const _mT=document.getElementById('cf-modal-overlay');const _tEl=_mT?.querySelector('#cf-evt-type');if(_tEl)_tEl.dispatchEvent(new Event('change'));else updateEventForm();}
 }
@@ -5622,6 +5918,285 @@ function renderHome(){
     }).join('');}
   }
 }
+
+// ── INTAKE FORM ───────────────────────────────────────────────────────────
+function renderCFIntake(){
+  if(!activeCaseId)return;
+  const g=grievances.find(x=>x.id==activeCaseId);
+  const cd=getCaseData(activeCaseId);
+  const itk=cd.intake||{};
+  const _m=document.getElementById('cf-modal-overlay');const _mOpen=_m&&_m.style.display!=='none';
+  const getI=id=>(_mOpen&&_m.querySelector('#'+id))||document.getElementById(id);
+
+  // Pre-populate from case details
+  const fields={
+    'itk-name':g?(g.firstName?g.firstName+' '+g.lastName:g.lastName||''):'',
+    'itk-articles':g?.articles||'',
+    'itk-completed-by':itk.completedBy||currentUserName(),
+    'itk-completed-date':itk.completedDate||'',
+  };
+  // Load all saved intake fields
+  const ALL_FIELDS=['itk-name','itk-phone','itk-email','itk-dept','itk-supervisor',
+    'itk-emp-status','itk-shift','itk-years','itk-best-time','itk-constraints',
+    'itk-incident-date','itk-aware-date','itk-reported-date','itk-location',
+    'itk-description','itk-happened-before','itk-before-details','itk-class',
+    'itk-class-details','itk-prior-attempt','itk-prior-details','itk-written-discipline',
+    'itk-discipline-details','itk-weingarten','itk-rep-requested','itk-rep-honored',
+    'itk-remedy','itk-prior-grievance','itk-prior-discipline','itk-prior-disc-detail',
+    'itk-process-aware','itk-spoken-others','itk-retaliation','itk-member-state',
+    'itk-articles','itk-contract-language','itk-mgmt-policy','itk-wlr-numbers',
+    'itk-wlr-comparator','itk-wlr-tracked','itk-grievability','itk-priority',
+    'itk-remedy-assessment','itk-next-step','itk-steward-notes','itk-completed-date','itk-completed-by'];
+
+  ALL_FIELDS.forEach(id=>{
+    const el=getI(id);if(!el)return;
+    const key=id.replace('itk-','').replace(/-([a-z])/g,(_,c)=>c.toUpperCase());
+    const val=itk[key]!==undefined?itk[key]:(fields[id]||'');
+    el.value=val;
+  });
+
+  // Render witnesses
+  renderIntakeWitnesses();
+  renderIntakeTimeline();
+
+  // Timeliness check
+  const incDate=getI('itk-incident-date')?.value;
+  if(incDate){
+    const df=diffDays(incDate);
+    const banner=getI('itk-timeliness-banner');
+    if(banner){
+      if(df!==null&&df<=-21){
+        banner.style.display='block';
+        banner.innerHTML='⚠ <strong>21-day window alert:</strong> Incident date is '+Math.abs(df)+'d ago — the 21-day filing window may have expired. Confirm timeliness before proceeding.';
+      } else if(df!==null&&df<=-14){
+        banner.style.display='block';
+        banner.innerHTML='⚠ <strong>Approaching 21-day window:</strong> '+(21-Math.abs(df))+'d remaining to file. Act promptly.';
+      } else {
+        banner.style.display='none';
+      }
+    }
+  }
+
+  // Show/hide conditional rows based on saved values
+  ['itk-happened-before','itk-class','itk-prior-attempt','itk-written-discipline','itk-prior-discipline'].forEach(id=>{
+    const el=getI(id);if(!el)return;
+    const targetMap={
+      'itk-happened-before':'itk-before-details-row',
+      'itk-class':'itk-class-details-row',
+      'itk-prior-attempt':'itk-prior-details-row',
+      'itk-written-discipline':'itk-discipline-details-row',
+      'itk-prior-discipline':'itk-prior-disc-detail-row',
+    };
+    const row=getI(targetMap[id]);
+    if(row)row.style.display=el.value==='Yes'?'flex':'none';
+  });
+}
+
+function saveIntakeData(){
+  if(!activeCaseId)return;
+  const cd=getCaseData(activeCaseId);
+  const _m=document.getElementById('cf-modal-overlay');const _mOpen=_m&&_m.style.display!=='none';
+  const getI=id=>(_mOpen&&_m.querySelector('#'+id))||document.getElementById(id);
+  const getV=id=>getI(id)?.value||'';
+
+  // Collect docs checklist
+  const checkedDocs=[];
+  const _mEl=_mOpen?_m:document;
+  _mEl.querySelectorAll('#itk-docs-checklist input[type=checkbox]:checked').forEach(cb=>checkedDocs.push(cb.dataset.doc));
+
+  cd.intake={
+    name:getV('itk-name'),phone:getV('itk-phone'),email:getV('itk-email'),
+    dept:getV('itk-dept'),supervisor:getV('itk-supervisor'),empStatus:getV('itk-emp-status'),
+    shift:getV('itk-shift'),years:getV('itk-years'),bestTime:getV('itk-best-time'),
+    constraints:getV('itk-constraints'),incidentDate:getV('itk-incident-date'),
+    awareDate:getV('itk-aware-date'),reportedDate:getV('itk-reported-date'),
+    location:getV('itk-location'),description:getV('itk-description'),
+    happenedBefore:getV('itk-happened-before'),beforeDetails:getV('itk-before-details'),
+    classGrievance:getV('itk-class'),classDetails:getV('itk-class-details'),
+    priorAttempt:getV('itk-prior-attempt'),priorDetails:getV('itk-prior-details'),
+    writtenDiscipline:getV('itk-written-discipline'),disciplineDetails:getV('itk-discipline-details'),
+    weingarten:getV('itk-weingarten'),repRequested:getV('itk-rep-requested'),repHonored:getV('itk-rep-honored'),
+    remedy:getV('itk-remedy'),priorGrievance:getV('itk-prior-grievance'),
+    priorDiscipline:getV('itk-prior-discipline'),priorDiscDetail:getV('itk-prior-disc-detail'),
+    processAware:getV('itk-process-aware'),spokenOthers:getV('itk-spoken-others'),
+    retaliation:getV('itk-retaliation'),memberState:getV('itk-member-state'),
+    articles:getV('itk-articles'),contractLanguage:getV('itk-contract-language'),
+    mgmtPolicy:getV('itk-mgmt-policy'),wlrNumbers:getV('itk-wlr-numbers'),
+    wlrComparator:getV('itk-wlr-comparator'),wlrTracked:getV('itk-wlr-tracked'),
+    grievability:getV('itk-grievability'),priority:getV('itk-priority'),
+    remedyAssessment:getV('itk-remedy-assessment'),nextStep:getV('itk-next-step'),
+    stewardNotes:getV('itk-steward-notes'),completedDate:getV('itk-completed-date'),
+    completedBy:getV('itk-completed-by'),docs:checkedDocs,
+    witnesses:cd.intake?.witnesses||[],timeline:cd.intake?.timeline||[],
+  };
+  sbSaveCaseData(activeCaseId);
+  updateCaseSaveStatus('saved');
+}
+
+function addIntakeWitness(){
+  if(!activeCaseId)return;
+  const cd=getCaseData(activeCaseId);
+  if(!cd.intake)cd.intake={};
+  if(!cd.intake.witnesses)cd.intake.witnesses=[];
+  cd.intake.witnesses.push({name:'',role:'',observed:''});
+  renderIntakeWitnesses();
+}
+
+function renderIntakeWitnesses(){
+  if(!activeCaseId)return;
+  const cd=getCaseData(activeCaseId);
+  const witnesses=cd.intake?.witnesses||[];
+  const _m=document.getElementById('cf-modal-overlay');const _mOpen=_m&&_m.style.display!=='none';
+  const el=(_mOpen&&_m.querySelector('#itk-witnesses-list'))||document.getElementById('itk-witnesses-list');
+  if(!el)return;
+  if(!witnesses.length){el.innerHTML='<div style="font-size:12px;color:#aaa;padding:4px 0">No witnesses added yet.</div>';return;}
+  el.innerHTML=witnesses.map((w,i)=>`
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px;flex-wrap:wrap">
+      <input type="text" value="${w.name||''}" placeholder="Witness name" oninput="updateIntakeWitness(${i},'name',this.value)" style="flex:1;min-width:120px;font-size:12px;padding:4px 8px;border:1px solid var(--border);border-radius:var(--radius)">
+      <input type="text" value="${w.role||''}" placeholder="Role / title" oninput="updateIntakeWitness(${i},'role',this.value)" style="flex:1;min-width:100px;font-size:12px;padding:4px 8px;border:1px solid var(--border);border-radius:var(--radius)">
+      <input type="text" value="${w.observed||''}" placeholder="What they observed" oninput="updateIntakeWitness(${i},'observed',this.value)" style="flex:3;min-width:180px;font-size:12px;padding:4px 8px;border:1px solid var(--border);border-radius:var(--radius)">
+      <button class="btn btn-sm btn-danger" onclick="removeIntakeWitness(${i})" style="font-size:11px;flex-shrink:0">✕</button>
+    </div>`).join('');
+}
+
+function updateIntakeWitness(idx,field,val){
+  if(!activeCaseId)return;
+  const cd=getCaseData(activeCaseId);
+  if(cd.intake?.witnesses?.[idx])cd.intake.witnesses[idx][field]=val;
+}
+
+function removeIntakeWitness(idx){
+  if(!activeCaseId)return;
+  const cd=getCaseData(activeCaseId);
+  if(cd.intake?.witnesses)cd.intake.witnesses.splice(idx,1);
+  renderIntakeWitnesses();
+}
+
+function addIntakeTimelineEntry(){
+  if(!activeCaseId)return;
+  const cd=getCaseData(activeCaseId);
+  if(!cd.intake)cd.intake={};
+  if(!cd.intake.timeline)cd.intake.timeline=[];
+  cd.intake.timeline.push({date:'',event:''});
+  renderIntakeTimeline();
+}
+
+function renderIntakeTimeline(){
+  if(!activeCaseId)return;
+  const cd=getCaseData(activeCaseId);
+  const timeline=cd.intake?.timeline||[];
+  const _m=document.getElementById('cf-modal-overlay');const _mOpen=_m&&_m.style.display!=='none';
+  const el=(_mOpen&&_m.querySelector('#itk-timeline-list'))||document.getElementById('itk-timeline-list');
+  if(!el)return;
+  if(!timeline.length){el.innerHTML='<div style="font-size:12px;color:#aaa;padding:4px 0">No timeline entries yet.</div>';return;}
+  el.innerHTML=timeline.map((t,i)=>`
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px;flex-wrap:wrap">
+      <input type="date" value="${t.date||''}" oninput="updateIntakeTimeline(${i},'date',this.value)" style="max-width:140px;font-size:12px;padding:4px 8px;border:1px solid var(--border);border-radius:var(--radius)">
+      <input type="text" value="${t.event||''}" placeholder="What happened" oninput="updateIntakeTimeline(${i},'event',this.value)" style="flex:1;min-width:200px;font-size:12px;padding:4px 8px;border:1px solid var(--border);border-radius:var(--radius)">
+      <button class="btn btn-sm btn-danger" onclick="removeIntakeTimeline(${i})" style="font-size:11px;flex-shrink:0">✕</button>
+    </div>`).join('');
+}
+
+function updateIntakeTimeline(idx,field,val){
+  if(!activeCaseId)return;
+  const cd=getCaseData(activeCaseId);
+  if(cd.intake?.timeline?.[idx])cd.intake.timeline[idx][field]=val;
+}
+
+function removeIntakeTimeline(idx){
+  if(!activeCaseId)return;
+  const cd=getCaseData(activeCaseId);
+  if(cd.intake?.timeline)cd.intake.timeline.splice(idx,1);
+  renderIntakeTimeline();
+}
+
+function printIntakeForm(){
+  if(!activeCaseId)return;
+  const g=grievances.find(x=>x.id==activeCaseId);
+  const cd=getCaseData(activeCaseId);const itk=cd.intake||{};
+  const w=window.open('','_blank');
+  const line=(label,val)=>`<tr><td style="font-weight:600;width:200px;padding:5px 8px;vertical-align:top;border-bottom:1px solid #eee">${label}</td><td style="padding:5px 8px;border-bottom:1px solid #eee">${val||'—'}</td></tr>`;
+  const section=(title)=>`<tr><td colspan="2" style="background:#1B2E5E;color:#fff;font-weight:700;padding:7px 10px;font-size:12px;text-transform:uppercase;letter-spacing:.05em">${title}</td></tr>`;
+  w.document.write(`<!DOCTYPE html><html><head><title>Intake Form — ${g?.num||'Unknown'}</title>
+  <style>body{font-family:Arial,sans-serif;font-size:13px;color:#222;margin:20px 40px}
+  h2{color:#1B2E5E}table{width:100%;border-collapse:collapse;margin-bottom:20px}
+  .internal{background:#f0ecff;border:2px solid #7c3aed;padding:12px;margin-top:20px}
+  @media print{.no-print{display:none}.internal{display:none}}</style></head><body>
+  <h2>UPAMM Member Intake Form</h2>
+  <div>Grievance #: <strong>${g?.num||'—'}</strong> &nbsp;|&nbsp; Date: <strong>${itk.completedDate||today()}</strong> &nbsp;|&nbsp; Steward: <strong>${itk.completedBy||currentUserName()}</strong></div>
+  <p style="font-size:11px;color:#888;font-style:italic">This form is confidential — do not distribute without authorization from the Chief Steward.</p>
+  <table>
+  ${section('Member Information')}
+  ${line('Name',itk.name)}${line('Phone',itk.phone)}${line('Email',itk.email)}
+  ${line('Department / Unit',itk.dept)}${line('Supervisor',itk.supervisor)}
+  ${line('Employment Status',itk.empStatus)}${line('Shift',itk.shift)}${line('Years at MM',itk.years)}
+  ${line('Best time to reach',itk.bestTime)}${line('Scheduling constraints',itk.constraints)}
+  ${section('Incident')}
+  ${line('Date of incident',fmtDisplay(itk.incidentDate))}${line('Date aware',fmtDisplay(itk.awareDate))}
+  ${line('Date reported to supervisor',fmtDisplay(itk.reportedDate))}${line('Location',itk.location)}
+  ${line('Description',itk.description)}${line('Happened before?',itk.happenedBefore)}
+  ${itk.happenedBefore==='Yes'?line('Prior occurrence details',itk.beforeDetails):''}
+  ${line('Potential class grievance?',itk.classGrievance)}
+  ${itk.classGrievance==='Yes'?line('Other affected members',itk.classDetails):''}
+  ${section('Prior Attempts to Resolve')}
+  ${line('Attempted informal resolution?',itk.priorAttempt)}
+  ${itk.priorAttempt==='Yes'?line('Details',itk.priorDetails):''}
+  ${line('Written notice / discipline?',itk.writtenDiscipline)}
+  ${itk.writtenDiscipline==='Yes'?line('Discipline details',itk.disciplineDetails):''}
+  ${section('Weingarten Rights')}
+  ${line('Weingarten situation?',itk.weingarten)}${line('Rep requested?',itk.repRequested)}${line('Request honored?',itk.repHonored)}
+  ${section('Witnesses')}
+  ${(itk.witnesses||[]).length?line('Witnesses',(itk.witnesses||[]).map(w=>`${w.name||'—'} (${w.role||'—'}): ${w.observed||'—'}`).join('<br>')):'<tr><td colspan="2" style="padding:5px 8px;color:#aaa">No witnesses listed</td></tr>'}
+  ${section('Supporting Documentation Available')}
+  ${line('Documents',((itk.docs||[]).join(', '))||'None indicated')}
+  ${section('Timeline of Events')}
+  ${(itk.timeline||[]).length?(itk.timeline||[]).map(t=>`<tr><td style="padding:4px 8px;border-bottom:1px solid #eee;width:120px">${fmtDisplay(t.date)}</td><td style="padding:4px 8px;border-bottom:1px solid #eee">${t.event||''}</td></tr>`).join(''):'<tr><td colspan="2" style="padding:5px 8px;color:#aaa">No timeline entries</td></tr>'}
+  ${section('Remedy Sought')}
+  ${line('Member requested remedy',itk.remedy)}
+  ${section('Member Background')}
+  ${line('Prior grievance filed?',itk.priorGrievance)}${line('Prior discipline?',itk.priorDiscipline)}
+  ${line('Aware of grievance process?',itk.processAware)}${line('Spoken to others?',itk.spokenOthers)}
+  ${line('Retaliation concern?',itk.retaliation)}${line('State of mind at intake',itk.memberState)}
+  </table>
+  <div class="internal">
+  <h3 style="color:#7c3aed;margin-top:0">INTERNAL — Steward Assessment (not for distribution)</h3>
+  <table>
+  ${section('Contract & Policy')}
+  ${line('Articles',itk.articles)}${line('Contract language',itk.contractLanguage)}${line('Mgmt policy cited',itk.mgmtPolicy)}
+  ${section('Grievability')}
+  ${line('Grievability',itk.grievability)}${line('Priority',itk.priority)}
+  ${line('Recommended next step',itk.nextStep)}${line('Steward remedy assessment',itk.remedyAssessment)}
+  ${line('Steward notes to file',itk.stewardNotes)}
+  </table></div>
+  <button class="no-print" onclick="window.print()" style="margin-top:20px;padding:8px 20px;background:#1B2E5E;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:13px">🖨 Print</button>
+  </body></html>`);
+  w.document.close();
+}
+
+async function driveExportIntake(){
+  if(!await ensureGoogleToken())return;
+  if(!activeCaseId)return;
+  const g=grievances.find(x=>x.id==activeCaseId);
+  const cd=getCaseData(activeCaseId);const itk=cd.intake||{};
+  const dateStr=fmtDDMMMYYYY(itk.completedDate||today());
+  const gnum=g?.num||'Unknown';
+  const fn=`Intake — G${gnum} — ${dateStr}.txt`;
+  let txt=`UPAMM MEMBER INTAKE FORM\nGrievance #: ${gnum}\nDate: ${itk.completedDate||today()}\nCompleted by: ${itk.completedBy||currentUserName()}\n\n`;
+  txt+=`MEMBER INFORMATION\nName: ${itk.name||'—'}\nPhone: ${itk.phone||'—'}\nEmail: ${itk.email||'—'}\nDept/Unit: ${itk.dept||'—'}\nSupervisor: ${itk.supervisor||'—'}\nStatus: ${itk.empStatus||'—'}  Shift: ${itk.shift||'—'}  Years at MM: ${itk.years||'—'}\n\n`;
+  txt+=`INCIDENT\nDate of incident: ${itk.incidentDate||'—'}\nDate aware: ${itk.awareDate||'—'}\nDate reported: ${itk.reportedDate||'—'}\nLocation: ${itk.location||'—'}\n\nDescription:\n${itk.description||'—'}\n\n`;
+  txt+=`Prior occurrence: ${itk.happenedBefore||'—'}${itk.beforeDetails?' — '+itk.beforeDetails:''}\nClass grievance: ${itk.classGrievance||'—'}${itk.classDetails?' — '+itk.classDetails:''}\n\n`;
+  txt+=`PRIOR ATTEMPTS\nAttempted informal: ${itk.priorAttempt||'—'}${itk.priorDetails?' — '+itk.priorDetails:''}\nWritten notice: ${itk.writtenDiscipline||'—'}${itk.disciplineDetails?' — '+itk.disciplineDetails:''}\n\n`;
+  txt+=`WEINGARTEN\nWeingarten situation: ${itk.weingarten||'—'}  Rep requested: ${itk.repRequested||'—'}  Honored: ${itk.repHonored||'—'}\n\n`;
+  txt+=`WITNESSES\n${(itk.witnesses||[]).map(w=>`${w.name||'—'} (${w.role||'—'}): ${w.observed||'—'}`).join('\n')||'None listed'}\n\n`;
+  txt+=`DOCS AVAILABLE: ${((itk.docs||[]).join(', '))||'None indicated'}\n\n`;
+  txt+=`TIMELINE\n${(itk.timeline||[]).map(t=>`${t.date}: ${t.event}`).join('\n')||'None listed'}\n\n`;
+  txt+=`REMEDY SOUGHT\n${itk.remedy||'—'}\n\n`;
+  txt+=`MEMBER BACKGROUND\nPrior grievance: ${itk.priorGrievance||'—'}  Prior discipline: ${itk.priorDiscipline||'—'}\nProcess aware: ${itk.processAware||'—'}  Spoken to others: ${itk.spokenOthers||'—'}\nRetaliation concern: ${itk.retaliation||'—'}  State of mind: ${itk.memberState||'—'}\n\n`;
+  txt+=`=== INTERNAL — STEWARD ASSESSMENT ===\nArticles: ${itk.articles||'—'}\nContract language: ${itk.contractLanguage||'—'}\nMgmt policy: ${itk.mgmtPolicy||'—'}\nGrievability: ${itk.grievability||'—'}  Priority: ${itk.priority||'—'}\nNext step: ${itk.nextStep||'—'}\nRemedy assessment: ${itk.remedyAssessment||'—'}\nSteward notes:\n${itk.stewardNotes||'—'}`;
+  await driveUploadFile(DRIVE_MEETINGS,fn,txt,'text/plain');
+  updateCaseSaveStatus('saved');
+}
+
 // ── OFFICER UPDATE ────────────────────────────────────────────────────
 function generateUpdate(){const ds=new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'});document.getElementById('update-date').textContent=ds;const open=grievances.filter(g=>g.closed==='No');const step3=open.filter(g=>g.status&&g.status.includes('Step 3'));const arb=open.filter(g=>g.status==='Arbitration');const hold=open.filter(g=>g.status&&g.status.includes('Hold'));const wlr=open.filter(g=>g.status&&(g.status.includes('Workload')||g.status.includes('WLR')));const ws=new Date();ws.setDate(ws.getDate()-ws.getDay());const wm=timeLog.filter(e=>new Date(e.date)>=ws).reduce((a,e)=>a+e.mins,0);const td=new Date();td.setHours(0,0,0,0);const urgent=open.filter(g=>g.deadline&&(diffDays(g.deadline)||0)<=7&&(diffDays(g.deadline)||0)>=0);const extra=document.getElementById('u-extra').value.trim();let t=`UPAMM — AFT Local 5297\nOFFICER MEETING UPDATE\n${ds}\nPresented by: Alexandra Tiefel, PA-C | Chief Steward\n`;t+=`\n══════════════════════\nGRIEVANCE SUMMARY\n══════════════════════\n`;t+=`Total: ${grievances.length}  Open: ${open.length}  Step 3: ${step3.length}  Arbitration: ${arb.length}  On Hold: ${hold.length}  WLR: ${wlr.length}\n`;if(step3.length){t+=`\nStep 3:\n`;step3.forEach(g=>{t+=`  • ${g.num} — ${g.brief||g.type} [${g.steward||'unassigned'}]\n`;});}if(arb.length){t+=`\nArbitration:\n`;arb.forEach(g=>{t+=`  • ${g.num} — ${g.brief||g.type}\n`;});}if(hold.length){t+=`\nOn Hold:\n`;hold.forEach(g=>{t+=`  • ${g.num} — ${g.brief||g.type}\n`;});}if(wlr.length){t+=`\nActive WLR:\n`;wlr.forEach(g=>{t+=`  • ${g.num} — ${g.brief||g.type} [${g.steward||'unassigned'}]\n`;});}if(urgent.length){t+=`\n⚠ Deadlines within 7 days:\n`;urgent.forEach(g=>{t+=`  • ${g.num} — due ${g.deadline}\n`;});}t+=`\n══════════════════════\nOPEN TASKS\n══════════════════════\n`;const openTasks=tasks.filter(t2=>!t2.done&&t2.pri==='high');if(openTasks.length){openTasks.forEach(tk=>{t+=`  • [${tk.pri.toUpperCase()}] ${tk.title}${tk.due?' (due '+fmtDisplay(tk.due)+')':''}\n`;})}else t+=`No high-priority tasks open.\n`;t+=`\n══════════════════════\nUPCOMING DEADLINES\n══════════════════════\n`;const allDl=getAllDeadlines().filter(d=>!d.done).sort((a,b)=>(diffDays(a.date)||999)-(diffDays(b.date)||999)).slice(0,5);allDl.forEach(d=>{const df=diffDays(d.date);t+='  • '+d.name+(df!==null?' ('+(df<0?Math.abs(df)+'d overdue':df===0?'today':'in '+df+'d')+')':'')+('\n');});t+=`\n══════════════════════\nSTEWARD ROSTER\n══════════════════════\n`;if(stewards.length){const act=stewards.filter(s=>s.status==='Active').length,vac=stewards.filter(s=>s.status==='Vacancy').length;t+=`Active: ${act}  Vacancies: ${vac}\n`;}else t+=`[Add stewards to roster]\n`;t+=`\n══════════════════════\nTIME THIS WEEK\n══════════════════════\n${Math.floor(wm/60)}h ${wm%60}m logged\n`;const weekMtgs=meetings.filter(m=>{try{return new Date(m.date)>=ws;}catch(e){return false;}});if(weekMtgs.length){t+=`Meetings: ${weekMtgs.length}\n`;weekMtgs.forEach(m=>{t+=`  • ${TYPE_LABELS[m.type]||m.type}${m.gnum?' (#'+m.gnum+')':''}\n`;});}if(extra)t+=`\n══════════════════════\nADDITIONAL ITEMS\n══════════════════════\n${extra}\n`;t+=`\n══════════════════════\nNEXT STEPS\n══════════════════════\n• Monitor open grievance deadlines\n• [Add specific action items]\n`;document.getElementById('update-content').textContent=t;document.getElementById('update-card').style.display='block';}
 function copyUpdate(){navigator.clipboard.writeText(document.getElementById('update-content').textContent).then(()=>alert('Copied!'));}
