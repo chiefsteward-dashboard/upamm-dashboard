@@ -6350,8 +6350,8 @@ function getNewFormSubmissionCount(){
 async function fetchSheetRows(sheetId,retry=0){
   if(!await ensureGoogleToken())return null;
   try{
-    const url=`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/A:AZ`;
-    const res=await fetch(url,{headers:{'Authorization':'Bearer '+googleAccessToken}});
+    const url=`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/A:AZ?majorDimension=ROWS&valueRenderOption=FORMATTED_VALUE`;
+    const res=await fetch(url,{headers:{'Authorization':'Bearer '+googleAccessToken,'Accept':'application/json'}});
     if(res.status===429&&retry<3){
       // Rate limited — wait and retry
       await new Promise(r=>setTimeout(r,3000*(retry+1)));
