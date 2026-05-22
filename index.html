@@ -702,6 +702,7 @@ tr:hover td{background:#faf9f7}
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap">
         <div class="card-title" style="margin:0;flex:1">All Grievances</div>
         <button class="btn btn-sm" onclick="showColSettings()" title="Show/hide and reorder columns">⚙ Columns</button>
+        <button class="btn btn-sm" onclick="startNewIntake()" style="color:var(--navy);border-color:var(--navy);font-weight:600">📋 New Intake</button>
         <button class="btn btn-sm" onclick="openBatchEventModal()" style="color:var(--purple);border-color:var(--purple)">⚡ Batch log event</button>
         <button class="btn btn-sm" onclick="printGrievanceLog()">🖨 Print log</button>
         <button class="btn btn-sm btn-green" onclick="exportCSV('grievances')">⬇ Export CSV</button>
@@ -4114,6 +4115,26 @@ function resetColSettings(){
   renderGrievances();
 }
 
+function startNewIntake(){
+  // Create a PENDING case and open it directly to the Intake tab
+  const existing=grievances.map(g=>g.num).filter(n=>n.startsWith('PENDING-'));
+  const maxN=existing.reduce((m,n)=>{const v=parseInt(n.replace('PENDING-',''))||0;return v>m?v:m;},0);
+  const num='PENDING-'+(maxN+1);
+  const newG={id:Date.now(),num,date:'',lastName:'',firstName:'',steward:'',
+    status:'Info Gathering',type:'',articles:'',deadline:'',appManager:'',
+    serviceLineDirector:'',brief:'',closed:'No',imported:false,disposition:'',subType:''};
+  grievances.unshift(newG);
+  getCaseData(newG.id).notes.push({id:Date.now(),text:'Case created via New Intake',type:'auto',ts:new Date().toISOString()});
+  sbSaveGrievance(newG);sbSaveCaseData(newG.id);
+  populateFilters();renderGrievances();renderGMetrics();
+  // Open case file directly to Intake tab
+  openCaseFile(newG.id);
+  setTimeout(()=>{
+    const tabs=document.querySelectorAll('.cf-tab');
+    tabs.forEach(t=>{if(t.textContent.includes('Intake'))t.click();});
+  },300);
+}
+
 function addGrievance(){
   let num=document.getElementById('g-num').value.trim();
   if(!num){
@@ -6029,8 +6050,33 @@ function saveIntakeData(){
     completedBy:getV('itk-completed-by'),docs:checkedDocs,
     witnesses:cd.intake?.witnesses||[],timeline:cd.intake?.timeline||[],
   };
+  // Auto-update grievance fields from intake data
+  const gToUpdate=grievances.find(x=>x.id===activeCaseId);
+  if(gToUpdate){
+    let changed=false;
+    // Update name if blank on case
+    if(itk.name&&!gToUpdate.lastName){
+      const parts=itk.name.trim().split(' ');
+      gToUpdate.firstName=parts.slice(0,-1).join(' ');
+      gToUpdate.lastName=parts[parts.length-1]||itk.name;
+      changed=true;
+    }
+    // Update articles if blank
+    if(itk.articles&&!gToUpdate.articles){gToUpdate.articles=itk.articles;changed=true;}
+    // Update brief if blank
+    if(itk.description&&!gToUpdate.brief){
+      gToUpdate.brief=itk.description.substring(0,100).split('\n').join(' ');changed=true;
+    }
+    // Update status to Info Gathering if still default
+    if(!gToUpdate.status||gToUpdate.status==='')gToUpdate.status='Info Gathering';
+    // Update steward if blank and completedBy is set
+    if(!gToUpdate.steward&&itk.completedBy)gToUpdate.steward=itk.completedBy;
+    if(changed)sbSaveGrievance(gToUpdate);
+  }
   sbSaveCaseData(activeCaseId);
   updateCaseSaveStatus('saved');
+  // Refresh case details display
+  if(typeof renderCFDetails==='function')renderCFDetails();
 }
 
 function addIntakeWitness(){
