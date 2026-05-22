@@ -219,6 +219,7 @@ tr:hover td{background:#faf9f7}
     <div class="nav-group">Cases</div>
     <div class="nav-item" onclick="showPanel('grievances',this)"><span class="nav-icon">⚖️</span> Grievance Log</div>
     <div class="nav-item" onclick="showPanel('mgmt-owes',this)"><span class="nav-icon">📌</span> Mgmt Owes Us</div>
+    <div class="nav-item" onclick="showPanel('ado-tracker',this)"><span class="nav-icon">⚡</span> ADO Tracker <span id="ado-badge" style="display:none;background:var(--red);color:#fff;font-size:10px;font-weight:700;padding:1px 6px;border-radius:99px;margin-left:4px"></span></div>
     <div class="nav-item" onclick="showPanel('union-owes',this)"><span class="nav-icon">📋</span> We Owe Mgmt</div>
     <div class="nav-item" onclick="showPanel('reflib',this)"><span class="nav-icon">📚</span> Reference Library</div>
     <div class="nav-item" onclick="showPanel('stewards',this)"><span class="nav-icon">👥</span> Stewards</div>
@@ -244,7 +245,10 @@ tr:hover td{background:#faf9f7}
       <h1 style="margin:0">Overview</h1>
       <div id="home-greeting" style="font-size:13px;color:var(--text3);margin-top:4px"></div>
     </div>
-    <button class="btn btn-sm" onclick="renderHome()" style="font-size:11px">↻ Refresh</button>
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+      <span id="home-form-badge" style="display:none;background:var(--red);color:#fff;font-size:12px;font-weight:700;padding:4px 12px;border-radius:99px;cursor:pointer" onclick="navToPanel('ado-tracker')"></span>
+      <button class="btn btn-sm" onclick="renderHome()" style="font-size:11px">↻ Refresh</button>
+    </div>
   </div>
 
   <!-- Metric cards row -->
@@ -1354,6 +1358,64 @@ tr:hover td{background:#faf9f7}
   </div>
 </div>
 
+<!-- ADO TRACKER PANEL -->
+<div id="panel-ado-tracker" class="panel">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:10px">
+    <div>
+      <h1 style="margin:0">ADO Tracker</h1>
+      <div style="font-size:13px;color:var(--text3);margin-top:4px">Assignment Despite Objection submissions — 60-day response required (MCL 333.20180)</div>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <a href="${FORM_ADO_SHORT}" target="_blank" class="btn btn-sm" style="font-size:11px;color:var(--red);border-color:var(--red)">⚡ Quick ADO form</a>
+      <a href="${FORM_ADO_FULL}" target="_blank" class="btn btn-sm" style="font-size:11px">Full ADO form</a>
+      <button class="btn btn-sm btn-primary" onclick="importAllForms()" style="font-size:11px">↻ Check for new submissions</button>
+    </div>
+  </div>
+
+  <!-- Import status cards -->
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-bottom:20px">
+    <div class="card" style="padding:14px">
+      <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;font-weight:700;margin-bottom:6px">ADO Quick</div>
+      <div id="import-status-adoshort" style="font-size:12px;color:var(--text2)">—</div>
+      <button class="btn btn-sm" style="font-size:11px;margin-top:8px" onclick="importFormSheet('adoShort')">Import new</button>
+    </div>
+    <div class="card" style="padding:14px">
+      <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;font-weight:700;margin-bottom:6px">ADO Full</div>
+      <div id="import-status-adofull" style="font-size:12px;color:var(--text2)">—</div>
+      <button class="btn btn-sm" style="font-size:11px;margin-top:8px" onclick="importFormSheet('adoFull')">Import new</button>
+    </div>
+    <div class="card" style="padding:14px">
+      <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;font-weight:700;margin-bottom:6px">WLR Intake</div>
+      <div id="import-status-wlr" style="font-size:12px;color:var(--text2)">—</div>
+      <button class="btn btn-sm" style="font-size:11px;margin-top:8px" onclick="importFormSheet('wlr')">Import new</button>
+    </div>
+    <div class="card" style="padding:14px">
+      <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;font-weight:700;margin-bottom:6px">Member Intake</div>
+      <div id="import-status-intake" style="font-size:12px;color:var(--text2)">—</div>
+      <button class="btn btn-sm" style="font-size:11px;margin-top:8px" onclick="importFormSheet('intake')">Import new</button>
+    </div>
+  </div>
+
+  <!-- ADO log -->
+  <div class="card" style="padding:0;overflow:hidden">
+    <div style="display:flex;align-items:center;gap:10px;padding:12px 16px;background:#faf9f7;border-bottom:1px solid var(--border)">
+      <div style="font-size:13px;font-weight:700;color:var(--navy);flex:1">ADO Submissions</div>
+      <select id="ado-filter-type" onchange="renderADOTracker()" style="font-size:12px;padding:4px 8px;border:1px solid var(--border);border-radius:var(--radius)">
+        <option value="">All types</option>
+        <option value="adoShort">ADO Quick</option>
+        <option value="adoFull">ADO Full</option>
+      </select>
+      <select id="ado-filter-status" onchange="renderADOTracker()" style="font-size:12px;padding:4px 8px;border:1px solid var(--border);border-radius:var(--radius)">
+        <option value="">All</option>
+        <option value="overdue">Response overdue</option>
+        <option value="pending">Awaiting response</option>
+        <option value="responded">Responded</option>
+      </select>
+    </div>
+    <div id="ado-tracker-list" style="padding:8px 0"></div>
+  </div>
+</div>
+
 <!-- SETTINGS PANEL -->
 <div id="panel-settings" class="panel">
   <h1>Settings &amp; Key People</h1>
@@ -1420,8 +1482,21 @@ const DRIVE_UPDATES='13l4-gC_m-Qr1Z8Jp-44xk3WUaeOW9_-S';
 const DRIVE_BACKUPS='1ORz9moiEYnSfBCKSZ8wgG52Z9wH8c5_J';
 const ADMIN_EMAIL='chiefsteward@upamm.org';
 
+// ── GOOGLE FORM SHEET IDs (for import) ────────────────────────────────
+const SHEET_INTAKE    = '1Otblv8_3AAxvPyw-v7zU9APe-dZ4vnBYU3dlSAC8yrU';
+const SHEET_ADO_SHORT = '1bR1Kqc9g0gGXYENnsgRv7Uz6R96iC6cfU4bCr5QtT7E';
+const SHEET_ADO_FULL  = '1nnLaf0PLlEAg2vayZaV7YII2H3WLY_TbUedAUMXxczg';
+const SHEET_WLR       = '1dHZbeF8rNlbF_sdv3oq354iFgDoSZp4Q7MqQNfidp-A';
+const FORM_ADO_SHORT  = 'https://docs.google.com/forms/d/e/1FAIpQLSf7Rg4B1JdIivxeK1wwpGB4WyORL7CPii6gzxnabYYZFPClvg/viewform';
+const FORM_ADO_FULL   = 'https://docs.google.com/forms/d/e/1FAIpQLSfvwC-USSywGN_ZXCUBzf2edHo2Idmj5wTpqY4jthFaMfpCAw/viewform';
+const FORM_WLR        = 'https://docs.google.com/forms/d/e/1FAIpQLSdtaS1LRM7T77IKbmtWjyns19S01NH7X7yP56WcPK7BI6dw8g/viewform';
+const FORM_INTAKE     = 'https://docs.google.com/forms/d/e/1FAIpQLScqozIpqRpvScsxAbF9L_L-0O480ibvcC3V8nSTepFQ5z2G_A/viewform';
+
 // Google API token (obtained after OAuth login)
 let googleAccessToken=null;
+// Form submission tracking — loaded from localStorage
+let formSubmissions={intake:[],adoShort:[],adoFull:[],wlr:[]};
+let formLastCheck={intake:'',adoShort:'',adoFull:'',wlr:''};
 let googleTokenExpiry=null;
 
 // ── CURRENT USER ──────────────────────────────────────────────────────
@@ -1740,7 +1815,7 @@ function showPanel(id,el){
   document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
   document.getElementById('panel-'+id).classList.add('active');
   el.classList.add('active');
-  const init={home:renderHome,calendar:initCalendar,deadlines:()=>{renderDlMetrics();renderDeadlines();},tasks:()=>{renderTaskMetrics();renderTasks();},grievances:()=>{populateFilters();renderGrievances();renderGMetrics();render21DayBanner();},stewards:()=>{renderStewardMetrics();renderStewards();},'mgmt-owes':()=>{renderMgmtOwes();},'union-owes':()=>{renderUnionOwes();},reflib:()=>{renderRefLib();},time:()=>{updateTimeMetrics();renderTimeLog();},notes:()=>{document.getElementById('n-date').value=today();renderNotes();},meetings:()=>{document.getElementById('mt-date').value=today();renderMeetings();},schedule:()=>{renderRecurring();renderOneOffs();loadSchedBlocks();},update:()=>{renderStatsChart();},settings:()=>{renderKeyContacts();}};
+  const init={home:renderHome,calendar:initCalendar,deadlines:()=>{renderDlMetrics();renderDeadlines();},tasks:()=>{renderTaskMetrics();renderTasks();},grievances:()=>{populateFilters();renderGrievances();renderGMetrics();render21DayBanner();},stewards:()=>{renderStewardMetrics();renderStewards();},'mgmt-owes':()=>{renderMgmtOwes();},'union-owes':()=>{renderUnionOwes();},reflib:()=>{renderRefLib();},time:()=>{updateTimeMetrics();renderTimeLog();},notes:()=>{document.getElementById('n-date').value=today();renderNotes();},meetings:()=>{document.getElementById('mt-date').value=today();renderMeetings();},schedule:()=>{renderRecurring();renderOneOffs();loadSchedBlocks();},update:()=>{renderStatsChart();},settings:()=>{renderKeyContacts();},'ado-tracker':()=>{renderADOTracker();}};
   if(init[id])init[id]();
 }
 
@@ -5792,6 +5867,12 @@ function renderHome(){
   const closed=grievances.filter(g=>g.closed==='Yes');
 
   // Greeting
+  // New form submission badge
+  const newCount=getNewFormSubmissionCount();
+  const homeBadge=document.getElementById('home-form-badge');
+  if(homeBadge){if(newCount>0){homeBadge.style.display='inline-flex';homeBadge.textContent=newCount+' new submission'+(newCount===1?'':'s');}else homeBadge.style.display='none';}
+  const adoBadge=document.getElementById('ado-badge');
+  if(adoBadge){if(newCount>0){adoBadge.style.display='inline-block';adoBadge.textContent=newCount;}else adoBadge.style.display='none';}
   const greetEl=document.getElementById('home-greeting');
   const hr=new Date().getHours();
 
@@ -6241,6 +6322,219 @@ async function driveExportIntake(){
   txt+=`=== INTERNAL — STEWARD ASSESSMENT ===\nArticles: ${itk.articles||'—'}\nContract language: ${itk.contractLanguage||'—'}\nMgmt policy: ${itk.mgmtPolicy||'—'}\nGrievability: ${itk.grievability||'—'}  Priority: ${itk.priority||'—'}\nNext step: ${itk.nextStep||'—'}\nRemedy assessment: ${itk.remedyAssessment||'—'}\nSteward notes:\n${itk.stewardNotes||'—'}`;
   await driveUploadFile(DRIVE_MEETINGS,fn,txt,'text/plain');
   updateCaseSaveStatus('saved');
+}
+
+
+// ── FORM SUBMISSION IMPORT ────────────────────────────────────────────────
+
+function getFormLastCheck(){
+  try{return JSON.parse(localStorage.getItem('upamm-form-lastcheck')||'{}');}catch(e){return{};}
+}
+
+function setFormLastCheck(type,ts){
+  const d=getFormLastCheck();d[type]=ts;
+  localStorage.setItem('upamm-form-lastcheck',JSON.stringify(d));
+}
+
+function getNewFormSubmissionCount(){
+  try{
+    const stored=JSON.parse(localStorage.getItem('upamm-form-submissions')||'{}');
+    let count=0;
+    ['adoShort','adoFull','wlr','intake'].forEach(t=>{
+      (stored[t]||[]).forEach(r=>{if(!r.reviewed)count++;});
+    });
+    return count;
+  }catch(e){return 0;}
+}
+
+async function fetchSheetRows(sheetId){
+  if(!await ensureGoogleToken())return null;
+  try{
+    const url=`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/A:AZ`;
+    const res=await fetch(url,{headers:{'Authorization':'Bearer '+googleAccessToken}});
+    if(!res.ok){console.error('Sheet fetch error',res.status);return null;}
+    const data=await res.json();
+    return data.values||[];
+  }catch(e){console.error('fetchSheetRows error',e);return null;}
+}
+
+async function importFormSheet(type){
+  const SHEET_MAP={adoShort:SHEET_ADO_SHORT,adoFull:SHEET_ADO_FULL,wlr:SHEET_WLR,intake:SHEET_INTAKE};
+  const sheetId=SHEET_MAP[type];
+  if(!sheetId)return;
+
+  // Update status
+  const statusEl=document.getElementById('import-status-'+type.toLowerCase());
+  if(statusEl)statusEl.innerHTML='<span style="color:var(--amber)">Checking...</span>';
+
+  const rows=await fetchSheetRows(sheetId);
+  if(!rows){
+    if(statusEl)statusEl.innerHTML='<span style="color:var(--red)">Error — check Google connection</span>';
+    return;
+  }
+  if(rows.length<2){
+    if(statusEl)statusEl.innerHTML='No submissions yet';
+    setFormLastCheck(type,new Date().toISOString());
+    return;
+  }
+
+  const headers=rows[0];
+  const dataRows=rows.slice(1);
+  const lastCheck=getFormLastCheck()[type]||'';
+
+  // Only import rows newer than last check
+  const stored=JSON.parse(localStorage.getItem('upamm-form-submissions')||'{}');
+  if(!stored[type])stored[type]=[];
+  const existingTs=new Set(stored[type].map(r=>r.timestamp));
+
+  let newCount=0;
+  dataRows.forEach(row=>{
+    const ts=row[0]||''; // Column A is always timestamp
+    if(!ts||existingTs.has(ts))return;
+    // Parse timestamp — Google Sheets format: "5/22/2026 11:30:15"
+    const rowDate=new Date(ts);
+    if(lastCheck&&rowDate<=new Date(lastCheck))return;
+
+    // Build record object from row
+    const record={timestamp:ts,type,reviewed:false,data:{}};
+    headers.forEach((h,i)=>{record.data[h]=row[i]||'';});
+    stored[type].push(record);
+    newCount++;
+  });
+
+  localStorage.setItem('upamm-form-submissions',JSON.stringify(stored));
+  setFormLastCheck(type,new Date().toISOString());
+
+  const total=stored[type].length;
+  if(statusEl)statusEl.innerHTML=newCount>0
+    ?`<span style="color:var(--teal)">${newCount} new imported (${total} total)</span>`
+    :`<span style="color:var(--text3)">${total} total — no new entries</span>`;
+
+  // Refresh badges and tracker
+  renderHome();
+  renderADOTracker();
+}
+
+async function importAllForms(){
+  await importFormSheet('adoShort');
+  await importFormSheet('adoFull');
+  await importFormSheet('wlr');
+  await importFormSheet('intake');
+}
+
+function markADOReviewed(type,idx){
+  const stored=JSON.parse(localStorage.getItem('upamm-form-submissions')||'{}');
+  if(stored[type]&&stored[type][idx])stored[type][idx].reviewed=true;
+  localStorage.setItem('upamm-form-submissions',JSON.stringify(stored));
+  renderADOTracker();renderHome();
+}
+
+function markADOResponded(type,idx){
+  const stored=JSON.parse(localStorage.getItem('upamm-form-submissions')||'{}');
+  if(stored[type]&&stored[type][idx]){
+    stored[type][idx].mgmtResponded=true;
+    stored[type][idx].respondedDate=today();
+    stored[type][idx].reviewed=true;
+  }
+  localStorage.setItem('upamm-form-submissions',JSON.stringify(stored));
+  renderADOTracker();renderHome();
+}
+
+function renderADOTracker(){
+  const el=document.getElementById('ado-tracker-list');if(!el)return;
+  const filterType=document.getElementById('ado-filter-type')?.value||'';
+  const filterStatus=document.getElementById('ado-filter-status')?.value||'';
+
+  const stored=JSON.parse(localStorage.getItem('upamm-form-submissions')||'{}');
+
+  // Gather ADO submissions only (short + full)
+  let all=[];
+  ['adoShort','adoFull'].forEach(t=>{
+    if(filterType&&filterType!==t)return;
+    (stored[t]||[]).forEach((r,i)=>all.push({...r,_type:t,_idx:i}));
+  });
+
+  // Sort newest first
+  all.sort((a,b)=>new Date(b.timestamp)-new Date(a.timestamp));
+
+  // Apply status filter
+  const td=todayDate();
+  all=all.filter(r=>{
+    const subDate=new Date(r.timestamp);
+    const daysSince=Math.round((td-subDate)/86400000);
+    const isOverdue=!r.mgmtResponded&&daysSince>60;
+    const isPending=!r.mgmtResponded&&daysSince<=60;
+    if(filterStatus==='overdue')return isOverdue;
+    if(filterStatus==='pending')return isPending;
+    if(filterStatus==='responded')return r.mgmtResponded;
+    return true;
+  });
+
+  if(!all.length){
+    el.innerHTML=`<div style="padding:24px;text-align:center;color:#aaa;font-size:13px">
+      No ADO submissions yet.<br>
+      <span style="font-size:12px">Use the "Check for new submissions" button to import from Google Sheets.</span>
+    </div>`;
+    return;
+  }
+
+  el.innerHTML=all.map(r=>{
+    const subDate=new Date(r.timestamp);
+    const daysSince=Math.round((todayDate()-subDate)/86400000);
+    const deadline60=new Date(subDate);deadline60.setDate(deadline60.getDate()+60);
+    const daysLeft=Math.round((deadline60-todayDate())/86400000);
+    const isOverdue=!r.mgmtResponded&&daysLeft<0;
+    const urgentSoon=!r.mgmtResponded&&daysLeft<=14&&daysLeft>=0;
+
+    const paName=r.data['Name(s) of PA(s) filing this ADO']||r.data['Name(s) of PA(s) objecting']||'—';
+    const facility=r.data['Facility']||'—';
+    const unit=r.data['Unit / Department / Service / Clinic']||r.data['Unit / Department / Service / Clinic name']||'—';
+    const reasons=r.data['Reason for objection (check all that apply)']||r.data['I/We are objecting based on the following (check all that apply)']||'—';
+
+    const deadlineColor=isOverdue?'var(--red)':urgentSoon?'var(--amber)':'var(--teal)';
+    const deadlineLabel=r.mgmtResponded?'✓ Responded '+r.respondedDate:
+      isOverdue?'⚠ Response OVERDUE by '+Math.abs(daysLeft)+'d':
+      daysLeft===0?'⚠ Response due TODAY':
+      'Response due in '+daysLeft+'d ('+fmtDisplay(isoDate(deadline60))+')';
+
+    return`<div style="padding:14px 16px;border-bottom:1px solid var(--border);${r.reviewed?'opacity:0.6':''}">
+      <div style="display:flex;align-items:flex-start;gap:12px;flex-wrap:wrap">
+        <div style="flex:1;min-width:200px">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;flex-wrap:wrap">
+            <span style="font-size:11px;font-weight:700;background:${r._type==='adoShort'?'#fdf2f0':'#f0ede8'};color:${r._type==='adoShort'?'var(--red)':'var(--text3)'};padding:2px 8px;border-radius:99px">${r._type==='adoShort'?'ADO Quick':'ADO Full'}</span>
+            <span style="font-size:11px;color:var(--text3)">${fmtDisplay(r.timestamp?.split(' ')[0])||'—'}</span>
+            ${r.reviewed?'<span style="font-size:10px;color:var(--teal)">✓ Reviewed</span>':'<span style="font-size:10px;color:var(--amber);font-weight:600">● Unreviewed</span>'}
+          </div>
+          <div style="font-size:13px;font-weight:600;color:var(--navy);margin-bottom:2px">${escHtml(paName)}</div>
+          <div style="font-size:12px;color:var(--text2);margin-bottom:4px">${escHtml(facility)} · ${escHtml(unit)}</div>
+          <div style="font-size:11px;color:var(--text3);line-height:1.4">${escHtml((reasons||'').substring(0,120))}${reasons.length>120?'…':''}</div>
+        </div>
+        <div style="flex-shrink:0;text-align:right">
+          <div style="font-size:12px;font-weight:700;color:${deadlineColor};margin-bottom:8px">${deadlineLabel}</div>
+          <div style="display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap">
+            ${!r.reviewed?`<button class="btn btn-sm" style="font-size:11px" onclick="markADOReviewed('${r._type}',${r._idx})">Mark reviewed</button>`:''}
+            ${!r.mgmtResponded?`<button class="btn btn-sm btn-green" style="font-size:11px" onclick="markADOResponded('${r._type}',${r._idx})">✓ Mgmt responded</button>`:''}
+          </div>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+
+  // Update import status elements from localStorage
+  ['adoShort','adoFull','wlr','intake'].forEach(t=>{
+    const el=document.getElementById('import-status-'+t.toLowerCase());
+    if(el){
+      const count=(stored[t]||[]).length;
+      const newC=(stored[t]||[]).filter(r=>!r.reviewed).length;
+      el.innerHTML=count?`${count} total${newC>0?' · <strong style="color:var(--amber)">'+newC+' unreviewed</strong>':''}`:'No submissions yet';
+    }
+  });
+}
+
+// Check for new submissions on login (after Google auth)
+async function checkNewFormSubmissionsOnLogin(){
+  if(!googleAccessToken)return;
+  await importAllForms();
 }
 
 // ── OFFICER UPDATE ────────────────────────────────────────────────────
