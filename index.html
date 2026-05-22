@@ -1439,7 +1439,7 @@ tr:hover td{background:#faf9f7}
   <div class="card">
     <div class="card-title">About this dashboard</div>
     <div style="font-size:13px;color:var(--text2);line-height:1.8">
-      <div>Version: <strong>9.4</strong></div>
+      <div>Version: <strong id="dashboard-version">9.27</strong></div>
       <div>Supabase project: <strong>dolikttxxmrdbosyuqmn</strong></div>
       <div>Deployed at: <strong>chiefsteward-dashboard.github.io/upamm-dashboard/</strong></div>
       <div>Built by: <strong>Alexandra Tiefel, PA-C — Chief Steward, UPAMM AFT Local 5297</strong></div>
@@ -7629,7 +7629,7 @@ async function doGoogleLogin(){
     provider:'google',
     options:{
       redirectTo:window.location.href,
-      scopes:'https://www.googleapis.com/auth/calendar https://www.googleapis.com/auth/drive https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile',
+      scopes:'https://www.googleapis.com/auth/calendar https://www.googleapis.com/auth/drive https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/spreadsheets.readonly https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile',
       queryParams:{hd:'upamm.org',prompt:'consent',access_type:'offline'}
     }
   });
@@ -7674,7 +7674,7 @@ async function reconnectGoogle(){
     provider:'google',
     options:{
       redirectTo:window.location.href,
-      scopes:'https://www.googleapis.com/auth/calendar https://www.googleapis.com/auth/drive https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile',
+      scopes:'https://www.googleapis.com/auth/calendar https://www.googleapis.com/auth/drive https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/spreadsheets.readonly https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile',
       queryParams:{hd:'upamm.org',prompt:'consent'}// prompt:consent forces token refresh
     }
   });
@@ -7692,7 +7692,13 @@ async function doLogout(){
 
 function showForgotPassword(){alert('Visit accounts.google.com to manage your upamm.org account.');}
 
+// Dashboard version — update this when deploying
+const DASHBOARD_VERSION='9.27';
+
 function initAppUI(){
+  // Set version in settings panel
+  const vEl=document.getElementById('dashboard-version');
+  if(vEl)vEl.textContent=DASHBOARD_VERSION;
   const nd=document.getElementById('n-date');if(nd)nd.value=today();
   const md=document.getElementById('mt-date');if(md)md.value=today();
   const dd=document.getElementById('dl-date');if(dd)dd.value=today();
