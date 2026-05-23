@@ -61,7 +61,7 @@ tr:hover td{background:#faf9f7}
 .b-wlr{background:#e1f5ee;color:#085041}
 .b-open{background:#faeeda;color:#633806}
 .b-import{background:#e6f1fb;color:#042c53;font-size:9px;padding:1px 5px}
-.b-intake{background:#faeeda;color:#633806}
+.b-intake{background:#faeeda;color:#633806}.b-ulp{background:#fff3e0;color:#92400e;border:1px solid #f59e0b}.b-arb-brief{background:#fce4ec;color:#9f1239}
 .b-mgmt{background:#eeedfe;color:#3c3489}
 .b-officer{background:#1a2744;color:#fff}
 .b-steward{background:#e1f5ee;color:#085041}
@@ -325,7 +325,7 @@ tr:hover td{background:#faf9f7}
       <div class="form-field"><label>Date</label><input type="date" id="dl-date"></div>
       <div class="form-field"><label>Category</label>
         <select id="dl-cat">
-          <option>Grievance step</option><option>Arbitration</option><option>MOU / contract</option>
+          <option>Grievance step</option><option>Arbitration</option><option>Arbitration — Brief</option><option>ULP / MERC</option><option>MOU / contract</option>
           <option>Filing</option><option>Administrative</option><option>Other</option>
         </select>
       </div>
@@ -346,7 +346,7 @@ tr:hover td{background:#faf9f7}
       <button class="btn btn-sm" onclick="clearOldOverdue()" style="color:var(--red);border-color:var(--red-light);font-size:11px">✕ Clear overdue &gt;30d</button>
       <select id="dl-filter" onchange="renderDeadlines()" style="font-size:12px;padding:5px 8px;width:auto">
         <option value="">All categories</option>
-        <option>Grievance step</option><option>Arbitration</option><option>MOU / contract</option>
+        <option>Grievance step</option><option>Arbitration</option><option>Arbitration — Brief</option><option>ULP / MERC</option><option>MOU / contract</option>
         <option>Filing</option><option>Administrative</option><option>Other</option>
         <option value="__grievance">From grievance log</option>
         <option value="Information request (Art. 16 Sec. 3)">Information requests</option>
@@ -683,7 +683,7 @@ tr:hover td{background:#faf9f7}
       <div class="form-row">
         <div class="form-field"><label>Steward</label><input type="text" id="g-steward"></div>
         <div class="form-field"><label>Status</label>
-          <select id="g-status"><option>Info Gathering</option><option>Problem Solving (pre-grievance)</option><option>Step 1-Filed</option><option>Step 2-Filed</option><option>Step 3-Filed</option><option>Workload Info gathering</option><option>Workload-IMPLEMENTATION</option><option>WLR- solution finding</option><option>On - Hold</option><option>Arbitration</option><option>Resolved- in Union Favor</option><option>Closed</option></select>
+          <select id="g-status"><option>Info Gathering</option><option>Problem Solving (pre-grievance)</option><option>Step 1-Filed</option><option>Step 2-Filed</option><option>Step 3-Filed</option><option>Workload Info gathering</option><option>Workload-IMPLEMENTATION</option><option>WLR- solution finding</option><option>On - Hold</option><option>Arbitration</option><option>Arb — Brief Due</option><option>Arb — Brief Submitted</option><option>Arb — Ruling Received</option><option>ULP-Filed</option><option>MERC Hearing Scheduled</option><option>MERC Hearing Held</option><option>MERC Ruling Obtained</option><option>Resolved- in Union Favor</option><option>Closed</option></select>
         </div>
         <div class="form-field"><label>Type</label>
           <select id="g-type"><option>Compensation</option><option>Workload</option><option>Working Conditions</option><option>Impact Bargain</option><option>PTO</option><option>Professionalism</option><option>Other</option></select>
@@ -738,7 +738,7 @@ tr:hover td{background:#faf9f7}
           <option>Info Gathering</option><option>Problem Solving (pre-grievance)</option>
           <option>Step 1-Filed</option><option>Step 2-Filed</option><option>Step 3-Filed</option>
           <option>Workload Info gathering</option><option>WLR- solution finding</option>
-          <option>On - Hold</option><option>Arbitration</option><option>Resolved- in Union Favor</option><option>Closed</option>
+          <option>On - Hold</option><option>Arbitration</option><option>Arb — Brief Due</option><option>Arb — Brief Submitted</option><option>Arb — Ruling Received</option><option>ULP-Filed</option><option>MERC Hearing Scheduled</option><option>MERC Hearing Held</option><option>MERC Ruling Obtained</option><option>Resolved- in Union Favor</option><option>Closed</option>
         </select>
         <button class="btn btn-sm btn-primary" onclick="applyBulkStatus()">Apply to selected</button>
         <button class="btn btn-sm" onclick="clearBulkSelect()">Clear selection</button>
@@ -834,6 +834,9 @@ tr:hover td{background:#faf9f7}
                     <option value="step3-meeting-held">Step 3 meeting held</option>
                     <option value="prearb-meeting-held">Pre-arbitration (Step 3.5) meeting held</option>
                     <option value="arb-hearing-held">Arbitration hearing held</option>
+                    <option value="arb-brief-due">Arbitration brief due</option>
+                    <option value="arb-brief-submitted">Arbitration brief submitted</option>
+                    <option value="arb-ruling-received">Arbitration ruling / award received</option>
                   </optgroup>
                   <optgroup label="Management — Responses">
                     <option value="mgmt-ack-receipt">Mgmt acknowledged receipt of filing</option>
@@ -857,6 +860,18 @@ tr:hover td{background:#faf9f7}
                     <option value="member-meeting">Member meeting held</option>
                     <option value="officer-discussed">Discussed at officer meeting</option>
                     <option value="steward-update">Steward update / handoff</option>
+                  </optgroup>
+                  <optgroup label="ULP / MERC">
+                    <option value="ulp-filed">ULP / MERC charge filed</option>
+                    <option value="ulp-hearing-scheduled">MERC hearing scheduled</option>
+                    <option value="ulp-hearing-held">MERC hearing held</option>
+                    <option value="ulp-ruling-received">MERC ruling / decision received</option>
+                  </optgroup>
+                  <optgroup label="ULP / MERC">
+                    <option value="ulp-filed">ULP / MERC charge filed</option>
+                    <option value="ulp-hearing-scheduled">MERC hearing scheduled</option>
+                    <option value="ulp-hearing-held">MERC hearing held</option>
+                    <option value="ulp-ruling-received">MERC ruling / decision received</option>
                   </optgroup>
                   <optgroup label="Status">
                     <option value="resolved">Resolved / settled</option>
@@ -1096,6 +1111,8 @@ tr:hover td{background:#faf9f7}
           <option>Step 2 appeal</option>
           <option>Step 3 appeal</option>
           <option>Arbitration notice</option>
+          <option>Arbitration brief due</option>
+          <option>ULP / MERC filing</option>
           <option>Extension response</option>
           <option>Information provided</option>
           <option>Other</option>
@@ -2836,7 +2853,16 @@ const EVT_LABELS={
   'wlr-additional-mtg':'WLR additional follow-up meeting',
   'wlr-solution-proposed':'WLR — solution proposed',
   'wlr-solution-accepted':'WLR — solution accepted / resolved',
-  'wlr-solution-rejected':'WLR — solution rejected / escalating'
+  'wlr-solution-rejected':'WLR — solution rejected / escalating',
+  // Arbitration
+  'arb-brief-due':'Arbitration brief due',
+  'arb-brief-submitted':'Arbitration brief submitted',
+  'arb-ruling-received':'Arbitration ruling / award received',
+  // ULP / MERC
+  'ulp-filed':'ULP / MERC charge filed',
+  'ulp-hearing-scheduled':'MERC hearing scheduled',
+  'ulp-hearing-held':'MERC hearing held',
+  'ulp-ruling-received':'MERC ruling / decision received'
 };
 // owner: 'union'=purple, 'mgmt'=teal
 const EVT_OWNER={
@@ -2864,7 +2890,11 @@ const EVT_OWNER={
   'ad-hoc-mgmt-mtg':'','unit-pre-grievance-mtg':'',
   'wlr-initial-mtg-scheduled':'union','wlr-followup-mgmt-scheduled':'mgmt','wlr-additional-mtg-scheduled':'',
   'wlr-initial-mtg':'union','wlr-followup-mgmt':'mgmt','wlr-additional-mtg':'',
-  'wlr-solution-proposed':'','wlr-solution-accepted':'union','wlr-solution-rejected':'union'
+  'wlr-solution-proposed':'','wlr-solution-accepted':'union','wlr-solution-rejected':'union',
+  // Arbitration
+  'arb-brief-due':'union','arb-brief-submitted':'mgmt','arb-ruling-received':'both',
+  // ULP / MERC
+  'ulp-filed':'mgmt','ulp-hearing-scheduled':'both','ulp-hearing-held':'both','ulp-ruling-received':'both'
 };
 const EVT_COLORS={
   'union-filed-step1':'#534ab7','union-filed-step2':'#534ab7','union-filed-step3':'#534ab7',
@@ -2886,7 +2916,11 @@ const EVT_COLORS={
   'ad-hoc-mgmt-mtg':'var(--teal)','unit-pre-grievance-mtg':'var(--teal)',
   'wlr-initial-mtg-scheduled':'#a78bfa','wlr-followup-mgmt-scheduled':'#a78bfa','wlr-additional-mtg-scheduled':'#a78bfa',
   'wlr-initial-mtg':'#7c3aed','wlr-followup-mgmt':'#7c3aed','wlr-additional-mtg':'#7c3aed',
-  'wlr-solution-proposed':'#7c3aed','wlr-solution-accepted':'var(--teal)','wlr-solution-rejected':'var(--red)'
+  'wlr-solution-proposed':'#7c3aed','wlr-solution-accepted':'var(--teal)','wlr-solution-rejected':'var(--red)',
+  // Arbitration
+  'arb-brief-due':'var(--amber)','arb-brief-submitted':'#534ab7','arb-ruling-received':'var(--red)',
+  // ULP / MERC
+  'ulp-filed':'var(--red)','ulp-hearing-scheduled':'var(--amber)','ulp-hearing-held':'var(--teal)','ulp-ruling-received':'#27500a'
 };
 const EVT_AUTO_DEADLINES={
   'union-filed-step1':[{label:'Mgmt: oral reply due (Art. 16H)',days:7,owner:'mgmt',moType:'Step response due'}],
@@ -2912,7 +2946,11 @@ const EVT_AUTO_DEADLINES={
   'wlr-initial-mtg-scheduled':[],'wlr-followup-mgmt-scheduled':[],'wlr-additional-mtg-scheduled':[],
   'wlr-initial-mtg':[],'wlr-followup-mgmt':[],'wlr-additional-mtg':[],
   'wlr-solution-proposed':[],'wlr-solution-accepted':[],'wlr-solution-rejected':[],
-  'mgmt-ack-receipt':[]
+  'mgmt-ack-receipt':[],
+  // Arbitration
+  'arb-brief-due':[],'arb-brief-submitted':[],'arb-ruling-received':[],
+  // ULP / MERC
+  'ulp-filed':[],'ulp-hearing-scheduled':[],'ulp-hearing-held':[],'ulp-ruling-received':[]
 };
 
 // ── BALL IN COURT CALCULATOR ──────────────────────────────────────────
@@ -3075,7 +3113,7 @@ function renderCFHealthBanner(){
       const db=b.date?new Date(b.date+'T00:00:00'):new Date(b.ts);
       if(Math.abs(db-da)>86400000)return db-da; // Different days: sort by date
       // Same day: prefer meeting/response events over filing events (more specific action)
-      const PRIORITY=['arb-hearing-held','prearb-meeting-held','step3-meeting-held','step2-meeting-held','step1-meeting-held',
+      const PRIORITY=['arb-ruling-received','ulp-ruling-received','arb-brief-submitted','ulp-hearing-held','arb-hearing-held','prearb-meeting-held','step3-meeting-held','step2-meeting-held','step1-meeting-held',
         'mgmt-response-step3','mgmt-response-step2','mgmt-response-step1','mgmt-denied','mgmt-info-received',
         'step3-mtg-scheduled','step2-mtg-scheduled','step1-mtg-scheduled','arb-hearing-scheduled',
         'union-filed-step3','union-filed-step2','union-filed-step1','union-filed-arb'];
@@ -3101,7 +3139,14 @@ function renderCFHealthBanner(){
       'union-info-request':'Monitor info request — mgmt response due within 14d.',
       'mgmt-denied':'Consider next step: Step 2/3 appeal or arbitration.',
       'union-filed-arb':'Prepare for arbitration. Confirm hearing date and witnesses.',
-      'arb-hearing-held':'Await arbitrator decision (typically 30d).',
+      'arb-hearing-held':'Await arbitrator decision (typically 30d). Track brief due date.',
+      'arb-brief-due':'Brief is due. Confirm submission status.',
+      'arb-brief-submitted':'Brief submitted. Await ruling — follow up if no decision in 30 days.',
+      'arb-ruling-received':'Log ruling outcome. Update disposition and attach ruling URL in case details.',
+      'ulp-filed':'MERC charge filed. Monitor for hearing scheduling.',
+      'ulp-hearing-scheduled':'MERC hearing scheduled. Prepare documentation and witnesses.',
+      'ulp-hearing-held':'MERC hearing held. Await ruling.',
+      'ulp-ruling-received':'Log ruling outcome. Update disposition. Consider appeal if adverse.',
       'wlr-initial-mtg-scheduled':'Confirm WLR initial meeting date. Prepare union data and workload documentation.',
       'wlr-followup-mgmt-scheduled':'Confirm WLR follow-up date. Prepare to evaluate management’s presentation.',
       'wlr-additional-mtg-scheduled':'Confirm meeting date. Document all prior proposals and positions.',
@@ -3150,7 +3195,7 @@ let timelineView='art16'; // 'art16' | 'all' | 'comms' | 'wlr'
 
 const COMMS_TYPES=['member-followup','member-meeting','touchbase-discussed','officer-discussed','steward-update','note','member','action','ad-hoc-mgmt-mtg','unit-pre-grievance-mtg','union-contact'];
 const WLR_TYPES=['wlr-initial-mtg-scheduled','wlr-followup-mgmt-scheduled','wlr-additional-mtg-scheduled','wlr-initial-mtg','wlr-followup-mgmt','wlr-additional-mtg','wlr-solution-proposed','wlr-solution-accepted','wlr-solution-rejected'];
-const ART16_TYPES=['union-filed-step1','union-filed-step2','union-filed-step3','union-filed-arb','union-info-request','union-extension','union-withdrew',
+const ART16_TYPES=['union-filed-step1','union-filed-step2','union-filed-step3','union-filed-arb','union-info-request','union-extension','union-withdrew','arb-brief-due','arb-brief-submitted','arb-ruling-received','ulp-filed','ulp-hearing-scheduled','ulp-hearing-held','ulp-ruling-received',
   'step1-mtg-scheduled','step2-mtg-scheduled','step3-mtg-scheduled','prearb-mtg-scheduled','arb-hearing-scheduled',
   'step1-meeting-held','step2-meeting-held','step3-meeting-held','prearb-meeting-held','arb-hearing-held',
   'mgmt-response-step1','mgmt-response-step2','mgmt-response-step3','mgmt-response-overdue','mgmt-response-partial',
@@ -3327,7 +3372,7 @@ function updateEventForm(){
   const COMM_TYPES=['union-contact','touchbase-discussed','ad-hoc-mgmt-mtg','unit-pre-grievance-mtg',
     'member-followup','member-meeting','officer-discussed','steward-update'];
   const FILING_TYPES=['union-filed-step1','union-filed-step2','union-filed-step3',
-    'union-filed-arb','union-info-request','union-withdrew','union-extension',
+    'union-filed-arb','arb-brief-due','arb-brief-submitted','arb-ruling-received','ulp-filed','ulp-hearing-scheduled','ulp-hearing-held','ulp-ruling-received','union-info-request','union-withdrew','union-extension',
     'mgmt-ack-receipt','mgmt-response-step1','mgmt-response-step2','mgmt-response-step3',
     'mgmt-response-partial','mgmt-response-overdue','mgmt-extension','mgmt-info-received','mgmt-denied',
     'step1-meeting-held','step2-meeting-held','step3-meeting-held','prearb-meeting-held','arb-hearing-held',
@@ -4047,7 +4092,7 @@ function delIR(gId,idx){
   const cd=getCaseData(gId);cd.infoRequests.splice(idx,1);sbSaveCaseData(gId);renderCFInfoReq();
 }
 
-function statusBadge(s){if(!s)return'<span style="color:#bbb">—</span>';let cls='b-open';if(s.includes('Step')||s.includes('Filed'))cls='b-step';else if(s==='Arbitration')cls='b-arb';else if(s.includes('Hold'))cls='b-hold';else if(s.includes('Resolved')||s.includes('Settled'))cls='b-closed';else if(s.includes('Workload')||s.includes('WLR')||s.includes('Info')||s.includes('Problem')||s.includes('IMPLEMENTATION'))cls='b-wlr';return`<span class="badge ${cls}">${s}</span>`;}
+function statusBadge(s){if(!s)return'<span style="color:#bbb">—</span>';let cls='b-open';if(s.startsWith('ULP')||s.startsWith('MERC'))cls='b-ulp';else if(s.startsWith('Arb —'))cls='b-arb-brief';else if(s.includes('Step')||s.includes('Filed'))cls='b-step';else if(s==='Arbitration')cls='b-arb';else if(s.includes('Hold'))cls='b-hold';else if(s.includes('Resolved')||s.includes('Settled'))cls='b-closed';else if(s.includes('Workload')||s.includes('WLR')||s.includes('Info')||s.includes('Problem')||s.includes('IMPLEMENTATION'))cls='b-wlr';return`<span class="badge ${cls}">${s}</span>`;}
 
 function populateFilters(){const ss=[...new Set(grievances.map(g=>g.status).filter(Boolean))].sort();const ts=[...new Set(grievances.map(g=>g.type).filter(Boolean))].sort();const ws=[...new Set(grievances.map(g=>g.steward).filter(Boolean))].sort();const fs=document.getElementById('f-status'),ft=document.getElementById('f-type'),fw=document.getElementById('f-steward');const sv=fs.value,tv=ft.value,wv=fw.value;fs.innerHTML='<option value="">All statuses</option>'+ss.map(s=>`<option${s===sv?' selected':''}>${s}</option>`).join('');ft.innerHTML='<option value="">All types</option>'+ts.map(t=>`<option${t===tv?' selected':''}>${t}</option>`).join('');fw.innerHTML='<option value="">All stewards</option>'+ws.map(w=>`<option${w===wv?' selected':''}>${w}</option>`).join('');}
 
@@ -4197,7 +4242,7 @@ function startNewIntake(){
   const num='PENDING-'+(maxN+1);
   const newG={id:Date.now(),num,date:'',lastName:'',firstName:'',steward:'',
     status:'Info Gathering',type:'',articles:'',deadline:'',appManager:'',
-    serviceLineDirector:'',brief:'',closed:'No',imported:false,disposition:'',subType:''};
+    serviceLineDirector:'',brief:'',closed:'No',imported:false,disposition:'',rulingUrl:'',relatedCase:'',subType:''};
   grievances.unshift(newG);
   getCaseData(newG.id).notes.push({id:Date.now(),text:'Case created via New Intake',type:'auto',ts:new Date().toISOString()});
   sbSaveGrievance(newG);sbSaveCaseData(newG.id);
@@ -4219,7 +4264,7 @@ function addGrievance(){
     num='PENDING-'+(maxN+1);
   }
   const rd=document.getElementById('g-date').value;let fmt='';if(rd){const d=new Date(rd);fmt=`${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')}/${d.getFullYear()}`;}
-  const newG={id:Date.now(),num,date:fmt,lastName:document.getElementById('g-last').value.trim(),firstName:document.getElementById('g-first').value.trim(),steward:document.getElementById('g-steward').value.trim(),status:document.getElementById('g-status').value,type:document.getElementById('g-type').value,articles:document.getElementById('g-articles').value.trim(),deadline:document.getElementById('g-deadline').value,appManager:document.getElementById('g-app').value.trim(),serviceLineDirector:document.getElementById('g-sld').value.trim(),brief:document.getElementById('g-brief').value.trim(),closed:'No',imported:false,disposition:'',subType:''};
+  const newG={id:Date.now(),num,date:fmt,lastName:document.getElementById('g-last').value.trim(),firstName:document.getElementById('g-first').value.trim(),steward:document.getElementById('g-steward').value.trim(),status:document.getElementById('g-status').value,type:document.getElementById('g-type').value,articles:document.getElementById('g-articles').value.trim(),deadline:document.getElementById('g-deadline').value,appManager:document.getElementById('g-app').value.trim(),serviceLineDirector:document.getElementById('g-sld').value.trim(),brief:document.getElementById('g-brief').value.trim(),closed:'No',imported:false,disposition:'',rulingUrl:'',relatedCase:'',subType:''};
   grievances.unshift(newG);
   // Auto-log creation
   getCaseData(newG.id).notes.push({id:Date.now(),text:'Grievance created',type:'auto',ts:new Date().toISOString()});
@@ -4627,6 +4672,9 @@ function openCaseFile(id){
                     <option value="step3-meeting-held">Step 3 meeting held</option>
                     <option value="prearb-meeting-held">Pre-arbitration (Step 3.5) meeting held</option>
                     <option value="arb-hearing-held">Arbitration hearing held</option>
+                    <option value="arb-brief-due">Arbitration brief due</option>
+                    <option value="arb-brief-submitted">Arbitration brief submitted</option>
+                    <option value="arb-ruling-received">Arbitration ruling / award received</option>
                   </optgroup>
                   <optgroup label="Management — Responses">
                     <option value="mgmt-ack-receipt">Mgmt acknowledged receipt of filing</option>
@@ -4909,7 +4957,9 @@ function renderCFDetails(){
     ['APP Manager', g.appManager],
     ['Service Line Director', g.serviceLineDirector],
     ['Disposition', g.disposition],
-  ].forEach(([label,value,isHTML])=>grid.appendChild(detailItem(label,value,isHTML)));
+  g.rulingUrl?['Ruling / Award', `<a href="${g.rulingUrl}" target="_blank" style="color:var(--teal);word-break:break-all">${escHtml(g.rulingUrl)}</a>`]:null,
+  g.relatedCase?['Related Case', g.relatedCase]:null,
+  ].filter(Boolean).forEach(([label,value,isHTML])=>grid.appendChild(detailItem(label,value,isHTML)));
   viewMode.appendChild(grid);
   // Brief description
   const briefWrap=document.createElement('div');
@@ -4923,7 +4973,7 @@ function renderCFDetails(){
 
   // ── EDIT MODE ─────────────────────────────────────────────────────
   const editMode=document.createElement('div');editMode.id='cf-edit-mode';editMode.style.display='none';
-  const STATUS_OPTS=['Info Gathering','Problem Solving (pre-grievance)','Step 1-Filed','Step 2-Filed','Step 3-Filed','Workload Info gathering','Workload-IMPLEMENTATION','WLR- solution finding','On - Hold','Arbitration','Resolved- in Union Favor','Closed'];
+  const STATUS_OPTS=['Info Gathering','Problem Solving (pre-grievance)','Step 1-Filed','Step 2-Filed','Step 3-Filed','Workload Info gathering','Workload-IMPLEMENTATION','WLR- solution finding','On - Hold','Arbitration','Arb — Brief Due','Arb — Brief Submitted','Arb — Ruling Received','ULP-Filed','MERC Hearing Scheduled','MERC Hearing Held','MERC Ruling Obtained','Resolved- in Union Favor','Closed'];
   const TYPE_OPTS=['Compensation','Workload','Working Conditions','Impact Bargain','PTO','Professionalism','Other'];
 
   const row1=document.createElement('div');row1.className='form-row';
@@ -4955,6 +5005,22 @@ function renderCFDetails(){
   row3.appendChild(makeInput('cfe-sld','Service Line Director',g.serviceLineDirector));
   row3.appendChild(makeInput('cfe-disposition','Disposition',g.disposition));
   editMode.appendChild(row3);
+  const row3b=document.createElement('div');row3b.className='form-row';
+  const rulingField=document.createElement('div');rulingField.className='form-field';rulingField.style.flex='4';
+  const rulingLbl=document.createElement('label');rulingLbl.textContent='Ruling / Award URL (arbitration or MERC decision)';
+  const rulingInp=document.createElement('input');rulingInp.type='url';rulingInp.id='cfe-ruling-url';rulingInp.placeholder='https://...';rulingInp.value=g.rulingUrl||'';
+  rulingField.appendChild(rulingLbl);rulingField.appendChild(rulingInp);
+  row3b.appendChild(rulingField);editMode.appendChild(row3b);
+  const row3c=document.createElement('div');row3c.className='form-row';
+  const relField=document.createElement('div');relField.className='form-field';relField.style.flex='2';
+  const relLbl=document.createElement('label');relLbl.textContent='Related Case # (e.g. G9-2025)';
+  const relInp=document.createElement('input');relInp.type='text';relInp.id='cfe-related-case';relInp.placeholder='e.g. G9-2025';relInp.value=g.relatedCase||'';
+  // Autocomplete from existing case numbers
+  const relList=document.createElement('datalist');relList.id='cfe-related-case-list';
+  grievances.filter(x=>x.id!==g.id).forEach(x=>{const opt=document.createElement('option');opt.value=x.num+(x.brief?' — '+x.brief.substring(0,30):'');relList.appendChild(opt);});
+  relInp.setAttribute('list','cfe-related-case-list');
+  relField.appendChild(relLbl);relField.appendChild(relInp);relField.appendChild(relList);
+  row3c.appendChild(relField);editMode.appendChild(row3c);
 
   const row4=document.createElement('div');row4.className='form-row';
   const briefField=document.createElement('div');briefField.className='form-field';briefField.style.flex='4';
@@ -4999,6 +5065,8 @@ function saveCFEdit(){
   g.appManager=document.getElementById('cfe-app').value.trim();
   g.serviceLineDirector=document.getElementById('cfe-sld').value.trim();
   g.disposition=document.getElementById('cfe-disposition').value.trim();
+  g.rulingUrl=document.getElementById('cfe-ruling-url')?.value.trim()||'';
+  g.relatedCase=document.getElementById('cfe-related-case')?.value.trim()||'';
   g.brief=document.getElementById('cfe-brief').value.trim();
   // Auto-log the status change if it changed
   if(g.num!==oldNum||g.status){
@@ -5045,7 +5113,7 @@ function setCFTab(name,btn){
   const modal=document.getElementById('cf-modal-overlay');
   const inModal=modal&&modal.style.display!=='none';
   const prefix=inModal?'cf-modal-tab-':'cf-tab-';
-  ['activity','inforeq','checklist','meetings','refs','prep'].forEach(t=>{
+  ['activity','intake','inforeq','checklist','meetings','refs','prep','calc'].forEach(t=>{
     const el=document.getElementById(prefix+t);
     if(el)el.style.display=t===name?'block':'none';
   });
@@ -5979,7 +6047,9 @@ function renderHome(){
   if(statusEl){
     const entries=Object.entries(statusMap).sort((a,b)=>b[1]-a[1]);
     const STATUS_COLORS={'Step 1-Filed':'#534ab7','Step 2-Filed':'#534ab7','Step 3-Filed':'#534ab7',
-      'Arbitration':'var(--red)','Info Gathering':'var(--amber)','Problem Solving (pre-grievance)':'var(--amber)',
+      'Arbitration':'var(--red)','Arb — Brief Due':'var(--red)','Arb — Brief Submitted':'#534ab7','Arb — Ruling Received':'var(--red)',
+      'ULP-Filed':'#d97706','MERC Hearing Scheduled':'#d97706','MERC Hearing Held':'#d97706','MERC Ruling Obtained':'#27500a',
+      'Info Gathering':'var(--amber)','Problem Solving (pre-grievance)':'var(--amber)',
       'Workload Info gathering':'#4285f4','On - Hold':'#888'};
     statusEl.innerHTML=entries.map(([s,n])=>{
       const pct=Math.round(n/open.length*100);
@@ -6960,9 +7030,11 @@ function calcDeadlines(){
     html+=dlItem('Mgmt final written response due',addD(base,14),'Art. 16 — 14 calendar days after meeting');
   } else if(step==='step3-response-received'){
     html+=dlItem('Arbitration notice deadline',addD(base,30),'Art. 16 — 30 calendar days');
+    html+=dlItem('Brief due (typical)',addD(base,60),'Confirm with arbitrator — often ~30d after notice; check scheduling order');
     html+=infoItem('Arbitration','Written notice of intent to arbitrate filed with the University.');
   } else if(step==='step3-response-due'){
     html+=dlItem('Arbitration notice deadline',addD(base,30),'Art. 16 — 30 days from date answer was due');
+    html+=dlItem('Brief due (typical)',addD(base,60),'Confirm with arbitrator — often ~30d after notice; check scheduling order');
   } else if(step==='info-request-submitted'){
     html+=dlItem('Info request response due (est.)',addD(base,14),'Art. 16 Sec. 3 — reasonable time (est. 14 days)','Exact standard is "reasonable time" — 14 days is working benchmark');
     html+=infoItem('If not fulfilled','Log as overdue in Mgmt Owes Us and document delay in the event log.');
