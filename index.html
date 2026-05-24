@@ -1383,8 +1383,8 @@ tr:hover td{background:#faf9f7}
       <div style="font-size:13px;color:var(--text3);margin-top:4px">Assignment Despite Objection submissions — 60-day response required (MCL 333.20180)</div>
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
-      <a href="${FORM_ADO_SHORT}" target="_blank" class="btn btn-sm" style="font-size:11px;color:var(--red);border-color:var(--red)">⚡ Quick ADO form</a>
-      <a href="${FORM_ADO_FULL}" target="_blank" class="btn btn-sm" style="font-size:11px">Full ADO form</a>
+      <a href="https://docs.google.com/forms/d/e/1FAIpQLSf7Rg4B1JdIivxeK1wwpGB4WyORL7CPii6gzxnabYYZFPClvg/viewform" target="_blank" class="btn btn-sm" style="font-size:11px;color:var(--red);border-color:var(--red)">⚡ Quick ADO form</a>
+      <a href="https://docs.google.com/forms/d/e/1FAIpQLSfvwC-USSywGN_ZXCUBzf2edHo2Idmj5wTpqY4jthFaMfpCAw/viewform" target="_blank" class="btn btn-sm" style="font-size:11px">Full ADO form</a>
       <button class="btn btn-sm btn-primary" onclick="importAllForms()" style="font-size:11px">↻ Check for new submissions</button>
     </div>
   </div>
@@ -1413,14 +1413,16 @@ tr:hover td{background:#faf9f7}
     </div>
   </div>
 
-  <!-- ADO log -->
+  <!-- Form Submissions log -->
   <div class="card" style="padding:0;overflow:hidden">
     <div style="display:flex;align-items:center;gap:10px;padding:12px 16px;background:#faf9f7;border-bottom:1px solid var(--border)">
-      <div style="font-size:13px;font-weight:700;color:var(--navy);flex:1">ADO Submissions</div>
+      <div style="font-size:13px;font-weight:700;color:var(--navy);flex:1">Form Submissions</div>
       <select id="ado-filter-type" onchange="renderADOTracker()" style="font-size:12px;padding:4px 8px;border:1px solid var(--border);border-radius:var(--radius)">
         <option value="">All types</option>
         <option value="adoShort">ADO Quick</option>
         <option value="adoFull">ADO Full</option>
+        <option value="wlr">WLR Intake</option>
+        <option value="intake">Member Intake</option>
       </select>
       <select id="ado-filter-status" onchange="renderADOTracker()" style="font-size:12px;padding:4px 8px;border:1px solid var(--border);border-radius:var(--radius)">
         <option value="">All</option>
@@ -1739,6 +1741,16 @@ async function loadAllData(){
 
   // Map DB snake_case to camelCase where needed
   grievances=(g||[]).map(mapGrievance);
+  // BUG-02A: Seed IMPORTED fallback records if Supabase grievances table is empty
+  // (happens on first run before any records pushed). IMPORTED ids are small ints (1000,2000...)
+  // so they won't collide with Date.now() ids.
+  if(grievances.length===0&&IMPORTED.length>0){
+    grievances=[...IMPORTED];
+  } else if(IMPORTED.length>0){
+    const existingNums=new Set(grievances.map(x=>x.num));
+    const missing=IMPORTED.filter(x=>!existingNums.has(x.num));
+    if(missing.length>0)grievances=[...grievances,...missing];
+  }
   stewards=(s||[]).map(mapSteward);
   tasks=(tk||[]);
   notes=(n||[]);
@@ -4133,7 +4145,7 @@ function renderGrievances(){
     const ballHtml=ball.owner==='—'?'<span style="color:#ddd;font-size:11px">—</span>':
       `<span style="display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:600;color:${ball.color}"><span style="width:7px;height:7px;border-radius:50%;background:${ball.color};flex-shrink:0"></span>${ball.owner}</span>`;
     const CELL={
-      num:`<td style="white-space:nowrap">${imp}<a href="#" onclick="openCaseFile(${g.id});return false;" style="font-weight:700;color:var(--navy);text-decoration:none;border-bottom:1px dashed var(--navy)">${escHtml(g.num)}</a></td>`,
+      num:`<td style="white-space:nowrap">${imp}${trackBadge(g.num)} <a href="#" onclick="openCaseFile(${g.id});return false;" style="font-weight:700;color:var(--navy);text-decoration:none;border-bottom:1px dashed var(--navy)">${escHtml(g.num)}</a></td>`,
       date:`<td style="white-space:nowrap;color:#888;font-size:12px">${g.date||'—'}</td>`,
       member:`<td style="font-size:13px">${escHtml(member)}</td>`,
       steward:`<td style="font-size:12px">${escHtml(g.steward||'—')}</td>`,
@@ -4235,11 +4247,67 @@ function resetColSettings(){
   renderGrievances();
 }
 
+
+// FEAT-01: Parse track from case number prefix
+function getTrack(num){
+  if(!num)return'unknown';
+  const n=String(num).toUpperCase();
+  if(n.startsWith('P'))return'P';
+  if(n.startsWith('G'))return'G';
+  if(n.startsWith('I')&&!n.startsWith('IN'))return'I'; // avoid matching "INTAKE"
+  if(n.startsWith('U'))return'U';
+  if(n.startsWith('PENDING-'))return'P'; // legacy format
+  // Fallback: if it's purely numeric, treat as G (old pre-prefix numbering)
+  if(/^\d/.test(n))return'G';
+  return'unknown';
+}
+function trackLabel(track){
+  return{P:'Pending/Intake',G:'Grievance/WLR/ADO',I:'Informal',U:'MERC/ULP/PERA',unknown:'Unknown'}[track]||track;
+}
+function trackBadge(num){
+  const t=getTrack(num);
+  const styles={
+    P:'background:#faeeda;color:#633806',
+    G:'background:#eeedfe;color:#3c3489',
+    I:'background:#eaf3de;color:#27500a',
+    U:'background:#fff3e0;color:#92400e;border:1px solid #f59e0b',
+    unknown:'background:#f0f0f0;color:#666'
+  };
+  const style=styles[t]||styles.unknown;
+  return`<span class="badge" style="${style}" title="${trackLabel(t)}">${t==='unknown'?'?':t}</span>`;
+}
+// Check if a status transition is consistent with the track — warn if not
+function warnTrackMismatch(num,newStatus){
+  const t=getTrack(num);
+  const msgs=[];
+  if(t==='P'&&(newStatus.includes('Step 1')||newStatus.includes('Step 2')||newStatus.includes('Step 3')||newStatus==='Arbitration')){
+    msgs.push('Case number starts with P (Pending/Intake) but status implies a filed grievance. Rename case number to G##-YYYY before filing.');
+  }
+  if(t==='G'&&newStatus.includes('MERC')){
+    msgs.push('Case number starts with G but status implies MERC/ULP track. Consider renaming to U##-YYYY.');
+  }
+  if(t==='P'&&newStatus==='Arbitration'){
+    msgs.push('Pending cases cannot go directly to Arbitration. This case should be filed as a G case first.');
+  }
+  return msgs;
+}
+
+// BUG-03: Shared counter across all tracks — parse numeric portion from any prefix
+function getNextCaseNum(){
+  const yr=new Date().getFullYear();
+  // Extract the leading integer from any case num format: "38", "35-2026", "PENDING-3", "G9-2025", "I11-2025", "U4-2025"
+  let max=0;
+  grievances.forEach(g=>{
+    const raw=(g.num||'').replace(/^[A-Za-z]+-?/,''); // strip any letter prefix + optional dash
+    const n=parseInt(raw)||0;
+    if(n>max)max=n;
+  });
+  return 'P'+(max+1)+'-'+yr;
+}
+
 function startNewIntake(){
   // Create a PENDING case and open it directly to the Intake tab
-  const existing=grievances.map(g=>g.num).filter(n=>n.startsWith('PENDING-'));
-  const maxN=existing.reduce((m,n)=>{const v=parseInt(n.replace('PENDING-',''))||0;return v>m?v:m;},0);
-  const num='PENDING-'+(maxN+1);
+  const num=getNextCaseNum();
   const newG={id:Date.now(),num,date:'',lastName:'',firstName:'',steward:'',
     status:'Info Gathering',type:'',articles:'',deadline:'',appManager:'',
     serviceLineDirector:'',brief:'',closed:'No',imported:false,disposition:'',rulingUrl:'',relatedCase:'',subType:''};
@@ -4258,10 +4326,8 @@ function startNewIntake(){
 function addGrievance(){
   let num=document.getElementById('g-num').value.trim();
   if(!num){
-    // Auto-assign PENDING-N placeholder
-    const existing=grievances.map(g=>g.num).filter(n=>n.startsWith('PENDING-'));
-    const maxN=existing.reduce((m,n)=>{const v=parseInt(n.replace('PENDING-',''))||0;return v>m?v:m;},0);
-    num='PENDING-'+(maxN+1);
+    // Auto-assign next available number across all tracks
+    num=getNextCaseNum();
   }
   const rd=document.getElementById('g-date').value;let fmt='';if(rd){const d=new Date(rd);fmt=`${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')}/${d.getFullYear()}`;}
   const newG={id:Date.now(),num,date:fmt,lastName:document.getElementById('g-last').value.trim(),firstName:document.getElementById('g-first').value.trim(),steward:document.getElementById('g-steward').value.trim(),status:document.getElementById('g-status').value,type:document.getElementById('g-type').value,articles:document.getElementById('g-articles').value.trim(),deadline:document.getElementById('g-deadline').value,appManager:document.getElementById('g-app').value.trim(),serviceLineDirector:document.getElementById('g-sld').value.trim(),brief:document.getElementById('g-brief').value.trim(),closed:'No',imported:false,disposition:'',rulingUrl:'',relatedCase:'',subType:''};
@@ -4319,11 +4385,15 @@ function openCaseFile(id){
   const badge=document.createElement('span');
   badge.className='modal-status-badge';
   badge.innerHTML=statusBadge(g.status||'');
+  // FEAT-01: track badge
+  const trackBadgeEl=document.createElement('span');
+  trackBadgeEl.innerHTML=trackBadge(g.num)+' <span style="font-size:10px;color:var(--text3)">'+trackLabel(getTrack(g.num))+'</span>';
+  trackBadgeEl.style.cssText='display:inline-flex;align-items:center;gap:4px;margin-left:6px';
   // Save status indicator
   const saveBar=document.createElement('div');
   saveBar.style.cssText='width:100%;display:flex;align-items:center;justify-content:space-between;margin-top:6px;padding:4px 0';
   saveBar.innerHTML='<span id="cf-save-status" style="font-size:11px;color:rgba(0,0,0,0.35)">Changes auto-saved to Supabase</span><div style="display:flex;gap:8px"><button class="btn btn-sm" style="font-size:11px;padding:3px 10px" onclick="forceSaveCaseData()">💾 Save now</button><button class="btn btn-sm btn-danger" style="font-size:11px;padding:3px 10px" onclick="deleteCaseStep1()" id="cf-delete-btn">🗑 Delete case</button></div>';
-  hdr.appendChild(backBtn);hdr.appendChild(notesBtn);hdr.appendChild(title);hdr.appendChild(badge);hdr.appendChild(saveBar);
+  hdr.appendChild(backBtn);hdr.appendChild(notesBtn);hdr.appendChild(title);hdr.appendChild(badge);hdr.appendChild(trackBadgeEl);hdr.appendChild(saveBar);
   modal.appendChild(hdr);
 
   // Details card
@@ -6534,9 +6604,9 @@ function renderADOTracker(){
 
   const stored=JSON.parse(localStorage.getItem('upamm-form-submissions')||'{}');
 
-  // Gather ADO submissions only (short + full)
+  // Gather all form types (BUG-02B: expanded from ADO-only)
   let all=[];
-  ['adoShort','adoFull'].forEach(t=>{
+  ['adoShort','adoFull','wlr','intake'].forEach(t=>{
     if(filterType&&filterType!==t)return;
     (stored[t]||[]).forEach((r,i)=>all.push({...r,_type:t,_idx:i}));
   });
@@ -6588,7 +6658,7 @@ function renderADOTracker(){
       <div style="display:flex;align-items:flex-start;gap:12px;flex-wrap:wrap">
         <div style="flex:1;min-width:200px">
           <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;flex-wrap:wrap">
-            <span style="font-size:11px;font-weight:700;background:${r._type==='adoShort'?'#fdf2f0':'#f0ede8'};color:${r._type==='adoShort'?'var(--red)':'var(--text3)'};padding:2px 8px;border-radius:99px">${r._type==='adoShort'?'ADO Quick':'ADO Full'}</span>
+            <span style="font-size:11px;font-weight:700;background:${r._type==='adoShort'?'#fdf2f0':r._type==='adoFull'?'#f0ede8':r._type==='wlr'?'#e1f5ee':'#eeedfe'};color:${r._type==='adoShort'?'var(--red)':r._type==='adoFull'?'var(--text3)':r._type==='wlr'?'#085041':'#3c3489'};padding:2px 8px;border-radius:99px">${r._type==='adoShort'?'ADO Quick':r._type==='adoFull'?'ADO Full':r._type==='wlr'?'WLR Intake':'Member Intake'}</span>
             <span style="font-size:11px;color:var(--text3)">${fmtDisplay(r.timestamp?.split(' ')[0])||'—'}</span>
             ${r.reviewed?'<span style="font-size:10px;color:var(--teal)">✓ Reviewed</span>':'<span style="font-size:10px;color:var(--amber);font-weight:600">● Unreviewed</span>'}
           </div>
@@ -6600,7 +6670,8 @@ function renderADOTracker(){
           <div style="font-size:12px;font-weight:700;color:${deadlineColor};margin-bottom:8px">${deadlineLabel}</div>
           <div style="display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap">
             ${!r.reviewed?`<button class="btn btn-sm" style="font-size:11px" onclick="markADOReviewed('${r._type}',${r._idx})">Mark reviewed</button>`:''}
-            ${!r.mgmtResponded?`<button class="btn btn-sm btn-green" style="font-size:11px" onclick="markADOResponded('${r._type}',${r._idx})">✓ Mgmt responded</button>`:''}
+            ${!r.mgmtResponded&&(r._type==='adoShort'||r._type==='adoFull')?`<button class="btn btn-sm btn-green" style="font-size:11px" onclick="markADOResponded('${r._type}',${r._idx})">✓ Mgmt responded</button>`:''}
+            ${!r.promotedCaseId?`<button class="btn btn-sm btn-primary" style="font-size:11px" onclick="promoteFormToIntake('${r._type}',${r._idx})">➕ Create Intake</button>`:`<button class="btn btn-sm" style="font-size:11px;color:var(--teal);border-color:var(--teal)" onclick="openCaseFile(${r.promotedCaseId})">📂 Case ${r.promotedCaseNum||'#?'}</button>`}
           </div>
         </div>
       </div>
@@ -6622,6 +6693,107 @@ function renderADOTracker(){
 async function checkNewFormSubmissionsOnLogin(){
   if(!googleAccessToken)return;
   await importAllForms();
+}
+
+// ── PROMOTE FORM SUBMISSION TO INTAKE CASE (BUG-02B) ─────────────────
+function promoteFormToIntake(type,idx){
+  const stored=JSON.parse(localStorage.getItem('upamm-form-submissions')||'{}');
+  const r=(stored[type]||[])[idx];
+  if(!r){alert('Submission not found.');return;}
+
+  const num=getNextCaseNum();
+  const typeLabel=type==='adoShort'?'ADO Quick':type==='adoFull'?'ADO Full':type==='wlr'?'WLR Intake':'Member Intake';
+
+  // Extract common fields across form types
+  const paName=r.data['Name(s) of PA(s) filing this ADO']
+    ||r.data['Name(s) of PA(s) objecting']
+    ||r.data['Your Name']
+    ||r.data['Member Name']
+    ||'';
+  const parts=paName.trim().split(' ');
+  const lastName=parts.length>1?parts[parts.length-1]:'';
+  const firstName=parts.length>1?parts.slice(0,-1).join(' '):paName;
+  const unit=r.data['Unit / Department / Service / Clinic']
+    ||r.data['Unit / Department / Service / Clinic name']
+    ||r.data['Your Unit/Clinic']
+    ||r.data['Unit']
+    ||'';
+  const appMgr=r.data['Immediate supervisor name']
+    ||r.data['Supervisor/APP Manager']
+    ||r.data['Approving Medical Authority (AMA) or APP Manager name']
+    ||'';
+  const brief=r.data['Brief description of issue']
+    ||r.data['Brief description']
+    ||r.data['Describe the issue']
+    ||(typeLabel+' submission — '+paName);
+  const issueType=type==='wlr'?'Workload':type==='adoShort'||type==='adoFull'?'ADO':'';
+
+  const confirmMsg=
+    'Create new intake case from this '+typeLabel+' submission?\n\n'+
+    'Case #: '+num+'\n'+
+    'Member: '+paName+'\n'+
+    'Unit: '+unit+'\n'+
+    'Brief: '+brief.substring(0,80)+'\n\n'+
+    'This will create a new P case in the Grievance Log.\n'+
+    'The form submission will be linked to the new case.';
+  if(!confirm(confirmMsg))return;
+
+  const newG={
+    id:Date.now(),
+    num,
+    date:today(),
+    lastName,
+    firstName,
+    steward:'',
+    status:'Info Gathering',
+    type:issueType,
+    subType:'',
+    articles:'',
+    deadline:'',
+    appManager:appMgr,
+    serviceLineDirector:'',
+    brief:brief.substring(0,200),
+    closed:'No',
+    imported:false,
+    disposition:'',
+    rulingUrl:'',
+    relatedCase:'',
+    formSource:type,
+    formTimestamp:r.timestamp
+  };
+  grievances.unshift(newG);
+
+  // Auto-log creation event
+  const cd=getCaseData(newG.id);
+  cd.notes.push({
+    id:Date.now(),
+    text:'Case created from '+typeLabel+' form submission (submitted '+r.timestamp+'). Member: '+paName+'. Unit: '+unit+'.',
+    type:'auto',
+    ts:new Date().toISOString()
+  });
+
+  sbSaveGrievance(newG);
+  sbSaveCaseData(newG.id);
+  populateFilters();
+  renderGrievances();
+  renderGMetrics();
+  renderADOTracker();
+
+  // Mark submission as promoted in localStorage
+  stored[type][idx].promotedCaseId=newG.id;
+  stored[type][idx].promotedCaseNum=num;
+  stored[type][idx].reviewed=true;
+  localStorage.setItem('upamm-form-submissions',JSON.stringify(stored));
+  renderADOTracker();
+
+  // Open the new case file
+  setTimeout(()=>{
+    openCaseFile(newG.id);
+    setTimeout(()=>{
+      const tabs=document.querySelectorAll('.cf-tab');
+      tabs.forEach(t=>{if(t.textContent.includes('Intake'))t.click();});
+    },300);
+  },200);
 }
 
 // ── OFFICER UPDATE ────────────────────────────────────────────────────
@@ -6963,7 +7135,13 @@ function applyBulkStatus(){
     const g=grievances.find(x=>x.id==id);
     if(g){
       getCaseData(id).notes.push({id:Date.now(),text:`Status updated to: ${newStatus}`,type:'status',ts:new Date().toISOString()});
-      g.status=newStatus;
+      // FEAT-01: warn on track mismatch before saving
+  const trackWarnings=warnTrackMismatch(g.num,newStatus);
+  if(trackWarnings.length>0){
+    const proceed=confirm('⚠ Track / Status Mismatch:\n\n'+trackWarnings.join('\n\n')+'\n\nProceed anyway?');
+    if(!proceed)return;
+  }
+  g.status=newStatus;
       if(newStatus==='Closed'||newStatus==='Resolved- in Union Favor')g.closed='Yes';
     }
   });
