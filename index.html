@@ -987,7 +987,7 @@ tr:hover td{background:#faf9f7}
           <div class="form-field" style="flex:3">
             <label>Link to request document <span style="font-weight:400;color:var(--text3)">(Google Drive URL — optional)</span></label>
             <input type="url" id="ir-url" placeholder="https://drive.google.com/file/d/...">
-            <div style="font-size:10px;color:var(--text3);margin-top:3px">📋 Naming convention: <code>YYYY-MM-DD — IR — [Grievance #] — [Brief description].pdf</code><br>e.g. <em>2026-03-24 — IR — 32-2026 — Scheduling data request.pdf</em></div>
+            <div style="font-size:10px;color:var(--text3);margin-top:3px">📋 Naming convention: <code>YYYY-MM-DD — IR — [Case #] — [Brief description].pdf</code><br>e.g. <em>2026-03-24 — IR — G32-2026 — Scheduling data request.pdf</em></div>
           </div>
         </div>
         <button class="btn btn-primary btn-sm" onclick="addInfoRequest()">Add Request</button>
@@ -4005,7 +4005,7 @@ function addInfoRequest(){
   const to=getField('ir-to')?.value.trim()||'';
   const g=grievances.find(x=>x.id==activeCaseId);
   const cd=getCaseData(activeCaseId);
-  const req={id:Date.now(),what,how,to,date:dateVal,due,url,received:false,receivedDate:'',notes:''};
+  const req={id:Date.now(),what,how,to,date:dateVal,due,url,received:false,receivedDate:'',notes:'',responseUrl:'',responseNotes:''};
   cd.infoRequests.push(req);
   // Auto-add to mgmt owes
   mgmtOwes.unshift({id:Date.now()+Math.floor(Math.random()*1000),what:'Info request: '+what+(g?' (Grievance #'+g.num+')':''),type:'Information request (Art. 16 Sec. 3)',due:due||'',gnum:g?g.num:'',contact:to,pri:'med',notes:'Requested '+dateVal+' via '+how,received:false,receivedDate:'',created:today()});
@@ -4080,9 +4080,14 @@ function markIRReceivedFull(gId,idx){
   const cd=getCaseData(gId);if(!cd.infoRequests[idx])return;
   const _m=document.getElementById('cf-modal-overlay');const _mOpen=_m&&_m.style.display!=='none';
   const getEl=id=>(_mOpen&&_m.querySelector('#'+id))||document.getElementById(id);
-  const respDate=getEl('ir-resp-date-'+idx)?.value||today();
-  const respUrl=getEl('ir-resp-url-'+idx)?.value.trim()||'';
-  const respNotes=getEl('ir-resp-notes-'+idx)?.value.trim()||'';
+  // BUG-C: Read response fields before any rerender. querySelector with dashes is valid but
+  // must use attribute selector form in some contexts — use both approaches
+  const respDateEl=getEl('ir-resp-date-'+idx)||(_m&&_m.querySelector('[id="ir-resp-date-'+idx+'"]'));
+  const respUrlEl=getEl('ir-resp-url-'+idx)||(_m&&_m.querySelector('[id="ir-resp-url-'+idx+'"]'));
+  const respNotesEl=getEl('ir-resp-notes-'+idx)||(_m&&_m.querySelector('[id="ir-resp-notes-'+idx+'"]'));
+  const respDate=respDateEl?.value||today();
+  const respUrl=(respUrlEl?.value||'').trim();
+  const respNotes=(respNotesEl?.value||'').trim();
   cd.infoRequests[idx].received=true;
   cd.infoRequests[idx].receivedDate=respDate;
   cd.infoRequests[idx].responseUrl=respUrl;
@@ -4292,14 +4297,20 @@ function warnTrackMismatch(num,newStatus){
   return msgs;
 }
 
-// BUG-03: Shared counter across all tracks — parse numeric portion from any prefix
+// BUG-03 + BUG-A: Shared counter across all tracks — parse numeric portion from any prefix
 function getNextCaseNum(){
   const yr=new Date().getFullYear();
-  // Extract the leading integer from any case num format: "38", "35-2026", "PENDING-3", "G9-2025", "I11-2025", "U4-2025"
   let max=0;
   grievances.forEach(g=>{
-    const raw=(g.num||'').replace(/^[A-Za-z]+-?/,''); // strip any letter prefix + optional dash
-    const n=parseInt(raw)||0;
+    const raw=String(g.num||'');
+    // Skip clearly malformed nums (start with 0, e.g. "0428-2025")
+    if(raw.startsWith('0'))return;
+    // Strip any letter prefix + optional dash: G9-2025 → 9-2025, PENDING-3 → 3, 35-2026 → 35-2026
+    const stripped=raw.replace(/^[A-Za-z]+-?/,'');
+    // Take only the leading integer portion before any dash
+    const n=parseInt(stripped)||0;
+    // Sanity cap: ignore implausibly large numbers (> 500) — these are data errors
+    if(n>500)return;
     if(n>max)max=n;
   });
   return 'P'+(max+1)+'-'+yr;
@@ -4875,7 +4886,7 @@ function openCaseFile(id){
           <div class="form-field" style="flex:3">
             <label>Link to request document <span style="font-weight:400;color:var(--text3)">(Google Drive URL — optional)</span></label>
             <input type="url" id="ir-url" placeholder="https://drive.google.com/file/d/...">
-            <div style="font-size:10px;color:var(--text3);margin-top:3px">📋 Naming convention: <code>YYYY-MM-DD — IR — [Grievance #] — [Brief description].pdf</code></div>
+            <div style="font-size:10px;color:var(--text3);margin-top:3px">📋 Naming convention: <code>YYYY-MM-DD — IR — [Case #] — [Brief description].pdf</code><br>e.g. <em>2026-03-24 — IR — G32-2026 — Scheduling data request.pdf</em></div>
           </div>
         </div>
         <button class="btn btn-primary btn-sm" onclick="addInfoRequest()">Add Request</button>
