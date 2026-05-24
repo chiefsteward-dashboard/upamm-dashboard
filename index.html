@@ -987,7 +987,7 @@ tr:hover td{background:#faf9f7}
           <div class="form-field" style="flex:3">
             <label>Link to request document <span style="font-weight:400;color:var(--text3)">(Google Drive URL — optional)</span></label>
             <input type="url" id="ir-url" placeholder="https://drive.google.com/file/d/...">
-            <div style="font-size:10px;color:var(--text3);margin-top:3px">📋 Naming convention: <code>YYYY-MM-DD — IR — [Case #] — [Brief description].pdf</code><br>e.g. <em>2026-03-24 — IR — G32-2026 — Scheduling data request.pdf</em></div>
+            <div style="font-size:10px;color:var(--text3);margin-top:3px">📋 Naming convention: <code>DDMMMYYYY — IR — [Case #] — [Brief description].pdf</code><br>e.g. <em>24MAR2026 — IR — G32-2026 — Scheduling data request.pdf</em></div>
           </div>
         </div>
         <button class="btn btn-primary btn-sm" onclick="addInfoRequest()">Add Request</button>
@@ -1458,7 +1458,7 @@ tr:hover td{background:#faf9f7}
   <div class="card">
     <div class="card-title">About this dashboard</div>
     <div style="font-size:13px;color:var(--text2);line-height:1.8">
-      <div>Version: <strong id="dashboard-version">9.27</strong></div>
+      <div>Version: <strong id="dashboard-version">9.28</strong></div>
       <div>Supabase project: <strong>dolikttxxmrdbosyuqmn</strong></div>
       <div>Deployed at: <strong>chiefsteward-dashboard.github.io/upamm-dashboard/</strong></div>
       <div>Built by: <strong>Alexandra Tiefel, PA-C — Chief Steward, UPAMM AFT Local 5297</strong></div>
@@ -1741,15 +1741,10 @@ async function loadAllData(){
 
   // Map DB snake_case to camelCase where needed
   grievances=(g||[]).map(mapGrievance);
-  // BUG-02A: Seed IMPORTED fallback records if Supabase grievances table is empty
-  // (happens on first run before any records pushed). IMPORTED ids are small ints (1000,2000...)
-  // so they won't collide with Date.now() ids.
+  // BUG-02A: Seed IMPORTED fallback ONLY if Supabase grievances table is completely empty
+  // Do NOT merge-by-num — Supabase records already contain these cases with updated nums
   if(grievances.length===0&&IMPORTED.length>0){
     grievances=[...IMPORTED];
-  } else if(IMPORTED.length>0){
-    const existingNums=new Set(grievances.map(x=>x.num));
-    const missing=IMPORTED.filter(x=>!existingNums.has(x.num));
-    if(missing.length>0)grievances=[...grievances,...missing];
   }
   stewards=(s||[]).map(mapSteward);
   tasks=(tk||[]);
@@ -4886,7 +4881,7 @@ function openCaseFile(id){
           <div class="form-field" style="flex:3">
             <label>Link to request document <span style="font-weight:400;color:var(--text3)">(Google Drive URL — optional)</span></label>
             <input type="url" id="ir-url" placeholder="https://drive.google.com/file/d/...">
-            <div style="font-size:10px;color:var(--text3);margin-top:3px">📋 Naming convention: <code>YYYY-MM-DD — IR — [Case #] — [Brief description].pdf</code><br>e.g. <em>2026-03-24 — IR — G32-2026 — Scheduling data request.pdf</em></div>
+            <div style="font-size:10px;color:var(--text3);margin-top:3px">📋 Naming convention: <code>DDMMMYYYY — IR — [Case #] — [Brief description].pdf</code><br>e.g. <em>24MAR2026 — IR — G32-2026 — Scheduling data request.pdf</em></div>
           </div>
         </div>
         <button class="btn btn-primary btn-sm" onclick="addInfoRequest()">Add Request</button>
@@ -6521,6 +6516,33 @@ async function fetchSheetRows(sheetId,retry=0){
   }catch(e){console.error('fetchSheetRows error',e);return null;}
 }
 
+// ── FORM SUBMISSION TOMBSTONES ───────────────────────────────────────
+// Tracks timestamps the user has explicitly dismissed so they never re-appear on import
+function getFormTombstones(type){
+  try{
+    const all=JSON.parse(localStorage.getItem('upamm-form-tombstones')||'{}');
+    return new Set(all[type]||[]);
+  }catch(e){return new Set();}
+}
+function addFormTombstone(type,timestamp){
+  try{
+    const all=JSON.parse(localStorage.getItem('upamm-form-tombstones')||'{}');
+    if(!all[type])all[type]=[];
+    if(!all[type].includes(timestamp))all[type].push(timestamp);
+    localStorage.setItem('upamm-form-tombstones',JSON.stringify(all));
+  }catch(e){}
+}
+function dismissFormSubmission(type,idx){
+  const stored=JSON.parse(localStorage.getItem('upamm-form-submissions')||'{}');
+  const rec=(stored[type]||[])[idx];
+  if(!rec)return;
+  addFormTombstone(type,rec.timestamp);
+  (stored[type]||[]).splice(idx,1);
+  // Re-index _idx values aren't stored so just save
+  localStorage.setItem('upamm-form-submissions',JSON.stringify(stored));
+  renderADOTracker();
+}
+
 async function importFormSheet(type){
   const SHEET_MAP={adoShort:SHEET_ADO_SHORT,adoFull:SHEET_ADO_FULL,wlr:SHEET_WLR,intake:SHEET_INTAKE};
   const sheetId=SHEET_MAP[type];
@@ -6546,21 +6568,23 @@ async function importFormSheet(type){
   const dataRows=rows.slice(1);
   const lastCheck=getFormLastCheck()[type]||'';
 
-  // Only import rows newer than last check
+  // Load tombstones — timestamps explicitly dismissed by the user
+  const tombstones=getFormTombstones(type);
+
+  // Append-only: only add rows newer than lastCheck, skip already-stored and tombstoned
   const stored=JSON.parse(localStorage.getItem('upamm-form-submissions')||'{}');
   if(!stored[type])stored[type]=[];
   const existingTs=new Set(stored[type].map(r=>r.timestamp));
 
   let newCount=0;
   dataRows.forEach(row=>{
-    const ts=row[0]||''; // Column A is always timestamp
-    if(!ts||existingTs.has(ts))return;
-    // Parse timestamp — Google Sheets format: "5/22/2026 11:30:15"
+    const ts=row[0]||'';
+    if(!ts)return;
+    if(existingTs.has(ts))return; // already stored
+    if(tombstones.has(ts))return; // user dismissed this record
     const rowDate=new Date(ts);
     if(lastCheck&&rowDate<=new Date(lastCheck))return;
-
-    // Build record object from row
-    const record={timestamp:ts,type,reviewed:false,data:{}};
+    const record={timestamp:ts,reviewed:false,data:{}};
     headers.forEach((h,i)=>{record.data[h]=row[i]||'';});
     stored[type].push(record);
     newCount++;
@@ -6681,6 +6705,7 @@ function renderADOTracker(){
           <div style="font-size:12px;font-weight:700;color:${deadlineColor};margin-bottom:8px">${deadlineLabel}</div>
           <div style="display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap">
             ${!r.reviewed?`<button class="btn btn-sm" style="font-size:11px" onclick="markADOReviewed('${r._type}',${r._idx})">Mark reviewed</button>`:''}
+            <button class="btn btn-sm btn-danger" style="font-size:11px" onclick="dismissFormSubmission('${r._type}',${r._idx})" title="Remove from dashboard and never re-import">✕ Dismiss</button>
             ${!r.mgmtResponded&&(r._type==='adoShort'||r._type==='adoFull')?`<button class="btn btn-sm btn-green" style="font-size:11px" onclick="markADOResponded('${r._type}',${r._idx})">✓ Mgmt responded</button>`:''}
             ${!r.promotedCaseId?`<button class="btn btn-sm btn-primary" style="font-size:11px" onclick="promoteFormToIntake('${r._type}',${r._idx})">➕ Create Intake</button>`:`<button class="btn btn-sm" style="font-size:11px;color:var(--teal);border-color:var(--teal)" onclick="openCaseFile(${r.promotedCaseId})">📂 Case ${r.promotedCaseNum||'#?'}</button>`}
           </div>
