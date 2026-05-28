@@ -4411,7 +4411,7 @@ function openCaseFile(id){
   // Tabs
   const tabBar=document.createElement('div');
   tabBar.style.cssText='display:flex;gap:0;border-bottom:1px solid var(--border);margin:16px 0';
-  const tabNames=[['activity','Activity / Status'],['intake','📋 Intake'],['inforeq','Info Requests'],['checklist','Documents'],['meetings','Linked Meetings'],['refs','References'],['prep','Meeting Prep']];
+  const tabNames=[['activity','Activity / Status'],['intake','📋 Intake'],['inforeq','Info Requests'],['links','🔗 Linked Cases'],['checklist','Documents'],['meetings','Linked Meetings'],['refs','References'],['prep','Meeting Prep']];
   tabNames.forEach(([name,label],i)=>{
     const btn=document.createElement('button');
     btn.className='cf-tab'+(i===0?' active':'');
@@ -4887,6 +4887,33 @@ function openCaseFile(id){
         <button class="btn btn-primary btn-sm" onclick="addInfoRequest()">Add Request</button>
       </div>
       <div id="cf-inforeq-list"></div>`,
+    links:()=>`
+      <div class="card" style="margin-bottom:14px">
+        <div class="card-title" style="color:var(--navy)">Add Linked Case</div>
+        <div class="form-row" style="flex-wrap:wrap;align-items:flex-end">
+          <div class="form-field" style="flex:1;min-width:140px">
+            <label>Case #</label>
+            <input type="text" id="cl-gnum" placeholder="e.g. G50-2026" list="cl-gnum-list" style="font-size:12px">
+            <datalist id="cl-gnum-list"></datalist>
+          </div>
+          <div class="form-field" style="flex:1;min-width:160px">
+            <label>Relationship</label>
+            <select id="cl-rel" style="font-size:12px">
+              <option value="related">Related</option>
+              <option value="child">Child of current</option>
+              <option value="parent">Parent of current</option>
+              <option value="pattern-evidence">Pattern evidence</option>
+              <option value="consolidated-into">Consolidated into</option>
+            </select>
+          </div>
+          <div class="form-field" style="flex:2;min-width:200px">
+            <label>Note <span style="font-weight:400;color:var(--text3)">(optional)</span></label>
+            <input type="text" id="cl-note" placeholder="Brief context..." style="font-size:12px">
+          </div>
+          <button class="btn btn-primary btn-sm" onclick="addCaseLink()" style="align-self:flex-end;white-space:nowrap">Add Link</button>
+        </div>
+      </div>
+      <div id="cf-links-list"></div>`,
     checklist:()=>`
       <div class="card">
         <div class="card-title">Documents &amp; Evidence Checklist</div>
@@ -5177,7 +5204,7 @@ function closeCaseFile(){
   document.getElementById('case-file-view').style.display='none';
   // Reset tabs
   document.querySelectorAll('.cf-tab').forEach((t,i)=>t.classList.toggle('active',i===0));
-  ['activity','intake','inforeq','checklist','meetings','refs','prep'].forEach((t,i)=>{
+  ['activity','intake','inforeq','links','checklist','meetings','refs','prep'].forEach((t,i)=>{
     const el=document.getElementById('cf-tab-'+t);if(el)el.style.display=i===0?'block':'none';
   });
 }
@@ -5189,13 +5216,14 @@ function setCFTab(name,btn){
   const modal=document.getElementById('cf-modal-overlay');
   const inModal=modal&&modal.style.display!=='none';
   const prefix=inModal?'cf-modal-tab-':'cf-tab-';
-  ['activity','intake','inforeq','checklist','meetings','refs','prep','calc'].forEach(t=>{
+  ['activity','intake','inforeq','links','checklist','meetings','refs','prep','calc'].forEach(t=>{
     const el=document.getElementById(prefix+t);
     if(el)el.style.display=t===name?'block':'none';
   });
   if(name==='prep')renderPrepChecklist();
   if(name==='inforeq')renderCFInfoReq();
   if(name==='refs')renderCFRefs();
+  if(name==='links')renderCFLinks();
   if(name==='intake')renderCFIntake();
   // Re-run form state when activity tab is shown
   if(name==='activity'){const _mT=document.getElementById('cf-modal-overlay');const _tEl=_mT?.querySelector('#cf-evt-type');if(_tEl)_tEl.dispatchEvent(new Event('change'));else updateEventForm();}
@@ -7762,6 +7790,144 @@ function renderCFRefs(){
     </div>`;return;
   }
   el.innerHTML=`<div style="font-size:12px;color:var(--text3);margin-bottom:10px">${matched.length} reference${matched.length!==1?'s':''} matched by article or grievance number</div>`+matched.map(r=>refDocCard(r,true)).join('');
+}
+
+function getLinkLabel(link, currentGnum){
+  const isFrom=link.from_gnum===currentGnum;
+  const rel=link.relationship;
+  const otherGnum=isFrom?link.to_gnum:link.from_gnum;
+  const labels={
+    'child':            {from:'Child of →',         to:'← Parent of'},
+    'parent':           {from:'Parent of →',        to:'← Child of'},
+    'related':          {from:'Related →',           to:'← Related'},
+    'pattern-evidence': {from:'Pattern evidence →',  to:'← Cites as pattern'},
+    'consolidated-into':{from:'Consolidated into →', to:'← Consolidates'},
+  };
+  const label=labels[rel]?.[isFrom?'from':'to']??rel;
+  return {label,otherGnum,note:link.note,id:link.id};
+}
+
+async function renderCFLinks(){
+  if(!activeCaseId)return;
+  const g=grievances.find(x=>x.id==activeCaseId);if(!g)return;
+  const _m=document.getElementById('cf-modal-overlay');
+  const _mOpen=_m&&_m.style.display!=='none';
+  const el=(_mOpen&&_m.querySelector('#cf-links-list'))||document.getElementById('cf-links-list');
+  if(!el)return;
+  el.innerHTML='<div style="font-size:12px;color:var(--text3);padding:8px 0">Loading linked cases…</div>';
+
+  // Populate datalist with all case gnums for typeahead
+  const dlEl=(_mOpen&&_m.querySelector('#cl-gnum-list'))||document.getElementById('cl-gnum-list');
+  if(dlEl){
+    dlEl.innerHTML=grievances.filter(x=>x.id!=activeCaseId).map(x=>`<option value="${x.num}">${x.num} — ${x.last_name||''}</option>`).join('');
+  }
+
+  try{
+    const {data:links,error}=await sb.from('case_links').select('*').or(`from_gnum.eq.${g.num},to_gnum.eq.${g.num}`);
+    if(error)throw error;
+    if(!links||!links.length){
+      el.innerHTML='<div class="card" style="color:#aaa;font-size:13px;text-align:center;padding:20px">No linked cases</div>';
+      return;
+    }
+
+    // Enrich with case details
+    const otherGnums=[...new Set(links.map(l=>l.from_gnum===g.num?l.to_gnum:l.from_gnum))];
+    const {data:cases}=await sb.from('grievances').select('num,last_name,first_name,status,type').in('num',otherGnums);
+    const caseMap={};(cases||[]).forEach(c=>{caseMap[c.num]=c;});
+
+    // Group by relationship type
+    const processed=links.map(l=>({...getLinkLabel(l,g.num),raw:l}));
+    const grouped={};
+    processed.forEach(p=>{
+      const key=p.label;
+      if(!grouped[key])grouped[key]=[];
+      grouped[key].push(p);
+    });
+
+    let html='';
+    const relOrder=['Child of →','← Parent of','Parent of →','← Child of','Related →','← Related','Pattern evidence →','← Cites as pattern','Consolidated into →','← Consolidates'];
+    const sortedKeys=Object.keys(grouped).sort((a,b)=>relOrder.indexOf(a)-relOrder.indexOf(b));
+
+    sortedKeys.forEach(key=>{
+      if(Object.keys(grouped).length>3){
+        html+=`<div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.07em;margin:14px 0 6px">${key}</div>`;
+      }
+      grouped[key].forEach(p=>{
+        const c=caseMap[p.otherGnum]||{};
+        const name=[c.last_name,c.first_name].filter(Boolean).join(', ')||'—';
+        const statusColor=c.status==='Open'?'var(--teal)':c.status==='Closed'?'#aaa':'var(--navy)';
+        html+=`<div style="display:flex;align-items:flex-start;gap:10px;padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius);margin-bottom:8px;background:#fafaf9">
+          <div style="flex:1;min-width:0">
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px">
+              <span style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;white-space:nowrap">${Object.keys(grouped).length<=3?key+' ':''}</span>
+              <button class="btn btn-sm" onclick="openCaseFromLink('${p.otherGnum}')" style="font-size:12px;font-weight:700;padding:2px 10px;color:var(--navy);border-color:var(--navy)">${p.otherGnum}</button>
+              <span style="font-size:12px;color:var(--text2)">${name}</span>
+              <span style="font-size:10px;font-weight:600;color:${statusColor};background:${statusColor}18;padding:1px 7px;border-radius:20px">${c.status||'—'}</span>
+            </div>
+            ${p.note?`<div style="font-size:11px;color:var(--text3);margin-left:2px">📝 ${p.note}</div>`:''}
+          </div>
+          <button class="btn btn-sm btn-danger" onclick="deleteCaseLink(${p.id})" style="font-size:11px;padding:2px 8px;flex-shrink:0" title="Remove link">✕</button>
+        </div>`;
+      });
+    });
+
+    el.innerHTML=html;
+  }catch(e){
+    el.innerHTML=`<div class="card" style="color:#c00;font-size:12px">Error loading linked cases: ${e.message}</div>`;
+  }
+}
+
+async function addCaseLink(){
+  if(!activeCaseId)return;
+  const g=grievances.find(x=>x.id==activeCaseId);if(!g)return;
+  const _m=document.getElementById('cf-modal-overlay');
+  const _mOpen=_m&&_m.style.display!=='none';
+  const getF=id=>(_mOpen&&_m.querySelector('#'+id))||document.getElementById(id);
+  const gnumEl=getF('cl-gnum');
+  const relEl=getF('cl-rel');
+  const noteEl=getF('cl-note');
+  const toGnum=(gnumEl?.value||'').trim();
+  const rel=relEl?.value||'related';
+  const note=(noteEl?.value||'').trim();
+  if(!toGnum){alert('Enter a case number to link.');return;}
+  if(toGnum===g.num){alert('Cannot link a case to itself.');return;}
+  try{
+    const {error}=await sb.from('case_links').insert({
+      from_gnum:g.num,
+      to_gnum:toGnum,
+      relationship:rel,
+      note:note||null,
+      last_edited_by:'Tiefel',
+      last_edited_at:new Date().toISOString()
+    });
+    if(error){
+      if(error.code==='23505')alert('This link already exists.');
+      else throw error;
+      return;
+    }
+    if(gnumEl)gnumEl.value='';
+    if(noteEl)noteEl.value='';
+    renderCFLinks();
+  }catch(e){
+    alert('Error adding link: '+e.message);
+  }
+}
+
+async function deleteCaseLink(id){
+  if(!confirm('Remove this case link?'))return;
+  try{
+    const {error}=await sb.from('case_links').delete().eq('id',id);
+    if(error)throw error;
+    renderCFLinks();
+  }catch(e){
+    alert('Error removing link: '+e.message);
+  }
+}
+
+function openCaseFromLink(gnum){
+  const g=grievances.find(x=>x.num===gnum);
+  if(!g){alert('Case '+gnum+' not found in loaded data.');return;}
+  openCaseFile(g.id);
 }
 
 function delRefDoc(id){
