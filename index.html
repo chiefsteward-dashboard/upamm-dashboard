@@ -233,6 +233,7 @@ tr:hover td{background:#faf9f7}
     <button id="reconnect-google-btn" onclick="reconnectGoogle()" style="display:none;width:100%;padding:7px;background:rgba(255,200,0,0.15);border:1px solid rgba(255,200,0,0.4);border-radius:var(--radius);color:rgba(255,220,100,0.9);font-size:11px;font-family:'Georgia',serif;cursor:pointer;margin-bottom:4px">⚠ Reconnect Google (Drive/Cal)</button>
     <button onclick="exportAndBackup()" style="width:100%;padding:7px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.2);border-radius:var(--radius);color:rgba(255,255,255,0.8);font-size:12px;font-family:'Georgia',serif;cursor:pointer;margin-bottom:4px" onmouseover="this.style.background='rgba(255,255,255,0.15)'" onmouseout="this.style.background='rgba(255,255,255,0.08)'">⬇ Export + backup to Drive</button>
     <button onclick="showMigrationPanel()" style="width:100%;padding:7px;background:transparent;border:1px solid rgba(255,255,255,0.12);border-radius:var(--radius);color:rgba(255,255,255,0.5);font-size:12px;font-family:'Georgia',serif;cursor:pointer" onmouseover="this.style.borderColor='rgba(255,255,255,0.3)'" onmouseout="this.style.borderColor='rgba(255,255,255,0.12)'">⬆ Migrate backup file</button>
+    <a href="https://chiefsteward-dashboard.github.io/upamm-resources/upamm-ada-guidance.html" target="_blank" style="display:block;width:100%;padding:7px;background:rgba(125,211,184,0.1);border:1px solid rgba(125,211,184,0.3);border-radius:var(--radius);color:rgba(125,211,184,0.9);font-size:11px;font-family:'Georgia',serif;cursor:pointer;text-align:center;text-decoration:none;margin-top:4px;box-sizing:border-box" onmouseover="this.style.background='rgba(125,211,184,0.2)'" onmouseout="this.style.background='rgba(125,211,184,0.1)'">📋 Member Guidance: ADA &amp; Leave</a>
   </div>
 </div>
 <div class="main">
@@ -1175,6 +1176,16 @@ tr:hover td{background:#faf9f7}
     </div>
     <div id="rl-file-warning" style="display:none;font-size:12px;color:var(--amber);margin-bottom:8px">⚠ Files are stored in your browser. Export All Data regularly to back them up.</div>
     <button class="btn btn-primary" onclick="addRefDoc()">Add to Library</button>
+  </div>
+  <div class="card" style="background:rgba(125,211,184,0.07);border:1.5px solid rgba(125,211,184,0.35);margin-bottom:16px">
+    <div style="display:flex;align-items:center;gap:12px">
+      <div style="font-size:24px">📋</div>
+      <div style="flex:1">
+        <div style="font-size:13px;font-weight:700;color:var(--text1);margin-bottom:2px">ADA &amp; Leave Guidance — Member Resource</div>
+        <div style="font-size:12px;color:var(--text3);line-height:1.5">Interactive flowchart, plain-language explainer, and steward reference covering ADA, FMLA, Michigan PWDCRA, and CBA leave. Share this link with members navigating accommodation or leave requests.</div>
+      </div>
+      <a href="https://chiefsteward-dashboard.github.io/upamm-resources/upamm-ada-guidance.html" target="_blank" class="btn btn-primary" style="white-space:nowrap;text-decoration:none;font-size:12px">Open ↗</a>
+    </div>
   </div>
   <div class="card">
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap">
@@ -8097,7 +8108,7 @@ async function doGoogleLogin(){
   const {error}=await sb.auth.signInWithOAuth({
     provider:'google',
     options:{
-      redirectTo:window.location.href,
+      redirectTo:window.location.origin+window.location.pathname,
       scopes:'https://www.googleapis.com/auth/calendar https://www.googleapis.com/auth/drive https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/spreadsheets.readonly https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile',
       queryParams:{hd:'upamm.org',prompt:'consent',access_type:'offline'}
     }
@@ -8142,7 +8153,7 @@ async function reconnectGoogle(){
   const {error}=await sb.auth.signInWithOAuth({
     provider:'google',
     options:{
-      redirectTo:window.location.href,
+      redirectTo:window.location.origin+window.location.pathname,
       scopes:'https://www.googleapis.com/auth/calendar https://www.googleapis.com/auth/drive https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/spreadsheets.readonly https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile',
       queryParams:{hd:'upamm.org',prompt:'consent'}// prompt:consent forces token refresh
     }
