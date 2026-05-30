@@ -8108,7 +8108,7 @@ async function doGoogleLogin(){
   const {error}=await sb.auth.signInWithOAuth({
     provider:'google',
     options:{
-      redirectTo:window.location.origin+window.location.pathname,
+      redirectTo:window.location.href,
       scopes:'https://www.googleapis.com/auth/calendar https://www.googleapis.com/auth/drive https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/spreadsheets.readonly https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile',
       queryParams:{hd:'upamm.org',prompt:'consent',access_type:'offline'}
     }
@@ -8153,7 +8153,7 @@ async function reconnectGoogle(){
   const {error}=await sb.auth.signInWithOAuth({
     provider:'google',
     options:{
-      redirectTo:window.location.origin+window.location.pathname,
+      redirectTo:window.location.href,
       scopes:'https://www.googleapis.com/auth/calendar https://www.googleapis.com/auth/drive https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/spreadsheets.readonly https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile',
       queryParams:{hd:'upamm.org',prompt:'consent'}// prompt:consent forces token refresh
     }
@@ -8306,26 +8306,27 @@ async function gmailSendOfficerUpdate(){
 // ── INIT ──────────────────────────────────────────────────────────────
 // First check URL hash for tokens (GitHub Pages OAuth redirect puts them here)
 (async()=>{
-  // Parse hash params — Supabase puts access_token etc in URL hash after redirect
   const hash=window.location.hash;
   if(hash&&hash.includes('access_token')){
-    // Let Supabase process the hash
+    // Parse provider token directly from hash before Supabase clears it
+    const params=new URLSearchParams(hash.replace('#',''));
+    const providerToken=params.get('provider_token');
+    if(providerToken){
+      googleAccessToken=providerToken;
+      console.log('Google token from URL hash ✓');
+    }
+    // Clean the URL immediately so Supabase doesn't re-process it
+    history.replaceState(null,'',window.location.pathname+window.location.search);
+    // Now let Supabase process the session — it reads from its own storage after PKCE exchange
     const {data:{session},error}=await sb.auth.getSession();
     if(session){
-      // Also try to get provider token from hash directly
-      const params=new URLSearchParams(hash.replace('#',''));
-      const providerToken=params.get('provider_token');
-      if(providerToken){
-        googleAccessToken=providerToken;
-        console.log('Google token from URL hash ✓');
-      }
-      // Clean up the URL
-      history.replaceState(null,'',window.location.pathname);
       onLogin(session.user);
       return;
     }
+    // Fallback: wait for onAuthStateChange to fire
+    return;
   }
-  // Normal session check
+  // Normal session check (no hash)
   const {data:{session}}=await sb.auth.getSession();
   if(session){
     onLogin(session.user);
