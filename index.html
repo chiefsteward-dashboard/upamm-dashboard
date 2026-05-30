@@ -8306,27 +8306,26 @@ async function gmailSendOfficerUpdate(){
 // ── INIT ──────────────────────────────────────────────────────────────
 // First check URL hash for tokens (GitHub Pages OAuth redirect puts them here)
 (async()=>{
+  // Parse hash params — Supabase puts access_token etc in URL hash after redirect
   const hash=window.location.hash;
   if(hash&&hash.includes('access_token')){
-    // Parse provider token directly from hash before Supabase clears it
-    const params=new URLSearchParams(hash.replace('#',''));
-    const providerToken=params.get('provider_token');
-    if(providerToken){
-      googleAccessToken=providerToken;
-      console.log('Google token from URL hash ✓');
-    }
-    // Clean the URL immediately so Supabase doesn't re-process it
-    history.replaceState(null,'',window.location.pathname+window.location.search);
-    // Now let Supabase process the session — it reads from its own storage after PKCE exchange
+    // Let Supabase process the hash
     const {data:{session},error}=await sb.auth.getSession();
     if(session){
+      // Also try to get provider token from hash directly
+      const params=new URLSearchParams(hash.replace('#',''));
+      const providerToken=params.get('provider_token');
+      if(providerToken){
+        googleAccessToken=providerToken;
+        console.log('Google token from URL hash ✓');
+      }
+      // Clean up the URL
+      history.replaceState(null,'',window.location.pathname);
       onLogin(session.user);
       return;
     }
-    // Fallback: wait for onAuthStateChange to fire
-    return;
   }
-  // Normal session check (no hash)
+  // Normal session check
   const {data:{session}}=await sb.auth.getSession();
   if(session){
     onLogin(session.user);
